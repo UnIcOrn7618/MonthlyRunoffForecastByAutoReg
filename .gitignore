@@ -1,0 +1,13 @@
+.idea/
+.vscode/
+ideas.md
+project.info
+graphs
+time_series
+techflow_plot
+submission
+data
+esvr
+graph
+results
+__pycache__
