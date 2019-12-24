@@ -3,7 +3,6 @@
 ideas.md
 project.info
 graphs
-time_series
 techflow_plot
 submission
 data
@@ -11,3 +10,6 @@ esvr
 graph
 results
 __pycache__
+
+ShiquanRunoff1956-2014.xlsx
+YangXianRunoff1967-2014.xlsx
