@@ -1,3 +1,4 @@
+% !Thanks John Quilty for providing this MATLAB script
 % MATLAB code to calculate boundary-corrected wavelet coefficients using MODWT (should work in MATLAB R2016a and above)
 X=rand(1000,1); % random time series
 wname = 'db2'; % wavelet filter (change to suit needs)

@@ -9,6 +9,8 @@ esvr
 graph
 results
 __pycache__
+*.asv
+[A-Z]_TRAINDEV.csv
 
 ShiquanRunoff1956-2014.xlsx
 YangXianRunoff1967-2014.xlsx
