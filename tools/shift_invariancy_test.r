@@ -1,10 +1,12 @@
+#' Thanks John Quilty for providing this R script
+
 #' Example R script to show the shift-invariancy and sensitivity to adding additional data points
 #' when using VMD for to proivde inputs for operational forecasting tasks.
 #' Note: run this script line by line instead of executing it in its entirety (as only the last plot
 #' will be displayed in the latter case).
 set.seed(123)
-install.packages("EMD")
-install.packages("vmd")
+install.packages("EMD",repos = "http://cran.us.r-project.org")
+install.packages("vmd",repos = "http://cran.us.r-project.org")
 library(EMD) # this is so that we can use the sunspot series as a test case
 library(vmd)
 data("sunspot")
