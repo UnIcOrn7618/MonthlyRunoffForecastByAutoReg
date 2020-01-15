@@ -20,6 +20,7 @@ from skopt import Optimizer
 from skopt.benchmarks import branin
 from functools import partial
 from statsmodels.tsa.arima_model import ARIMA
+from random import seed
 from random import random
 # from skopt.callbacks import CheckpointSaver
 
@@ -61,55 +62,55 @@ EPS_DPI = 2000
 TIFF_DPI=1200
 
 
-def multi_optimizer_esvr(root_path,station,predict_pattern,n_calls=100,retrain=False):
+def multi_optimizer_esvr(root_path,station,predict_pattern,n_calls=100,cv=6):
     # Set the time series and model parameters
     predictor = 'esvr'
     data_path = root_path + '/'+station+'/data/'+predict_pattern+'/'
     model_path = root_path+'/'+station+'/projects/'+predictor+'/'+predict_pattern+'/multi_optimizer/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    model_name = station+'_'+predictor
+    model_name = 'nc'+str(n_calls)+'_cv'+str(cv)
     logger.info("Build multiple optimizer epsilon SVR...")
-    logger.info('Model information:')
-    logger.info("\tRoot path:{}".format(root_path))
-    logger.info("\tStation:{}".format(station))
-    logger.info("\tPredict pattern:{}".format(predict_pattern))
-    logger.info("\tNumber of calls:{}".format(n_calls))
-    logger.info("\tData Path:{}".format(data_path))
-    logger.info("\tModel Path:{}".format(model_path))
+    
+    logger.info("Root path:{}".format(root_path))
+    logger.info("Station:{}".format(station))
+    logger.info("Predict pattern:{}".format(predict_pattern))
+    logger.info("Number of calls:{}".format(n_calls))
+    logger.info("Data Path:{}".format(data_path))
+    logger.info("Model Path:{}".format(model_path))
 
     
     if os.path.exists(model_path +model_name+'_optimized_params.csv') :
         optimal_params = pd.read_csv(model_path +model_name+'_optimized_params.csv')
         pre_n_calls = optimal_params['n_calls'][0]
-        if pre_n_calls==n_calls and not retrain:
+        if pre_n_calls==n_calls:
             logger.info("The n_calls="+str(n_calls)+" was already tuned")
-        else:
-            logger.info('Load learning samples...')
-            # Load the training, development and testing samples
-            train = pd.read_csv(data_path+'minmax_unsample_train.csv',index_col=False)
-            dev = pd.read_csv(data_path+'minmax_unsample_dev.csv',index_col=False)
-            test = pd.read_csv(data_path+'minmax_unsample_test.csv',index_col=False)
-            train_dev = pd.concat([train,dev],axis=0)
-            # shuffle the training samples
-            train_dev = train_dev.sample(frac=1)
-            train_y = train['Y']
-            train_x = train.drop('Y', axis=1)
-            dev_y = dev['Y']
-            dev_x = dev.drop('Y', axis=1)
-            test_y = test['Y']
-            test_x = test.drop('Y', axis=1)
-            train_dev_y = train_dev['Y']
-            train_dev_x = train_dev.drop('Y', axis=1)
-            logger.info('Build SVR model and set the evaluation space of Bayesian optimization.')
-            reg = SVR(tol=1e-4)
-            # Set the space of hyper-parameters for tuning them
-            space = ESVR_SPACE
-            # Define an objective function of hyper-parameters tuning
-            @use_named_args(space)
-            def objective(**params):
-                reg.set_params(**params)
-                return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
+    else:
+        logger.info('Load learning samples...')
+        # Load the training, development and testing samples
+        train = pd.read_csv(data_path+'minmax_unsample_train.csv',index_col=False)
+        dev = pd.read_csv(data_path+'minmax_unsample_dev.csv',index_col=False)
+        test = pd.read_csv(data_path+'minmax_unsample_test.csv',index_col=False)
+        train_dev = pd.concat([train,dev],axis=0)
+        # shuffle the training samples
+        train_dev = train_dev.sample(frac=1)
+        train_y = train['Y']
+        train_x = train.drop('Y', axis=1)
+        dev_y = dev['Y']
+        dev_x = dev.drop('Y', axis=1)
+        test_y = test['Y']
+        test_x = test.drop('Y', axis=1)
+        train_dev_y = train_dev['Y']
+        train_dev_x = train_dev.drop('Y', axis=1)
+        logger.info('Build SVR model and set the evaluation space of Bayesian optimization.')
+        reg = SVR(tol=1e-4)
+        # Set the space of hyper-parameters for tuning them
+        space = ESVR_SPACE
+        # Define an objective function of hyper-parameters tuning
+        @use_named_args(space)
+        def objective(**params):
+            reg.set_params(**params)
+            return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=cv,n_jobs=-1,scoring='neg_mean_squared_error'))
 
             def run(minimizer, n_iter=5):
                 return [minimizer(objective, space, n_calls=n_calls, random_state=n) 
@@ -135,24 +136,23 @@ def multi_optimizer_esvr(root_path,station,predict_pattern,n_calls=100,retrain=F
             plt.close('all')
     
 
-def esvr(root_path,station,predict_pattern,optimizer='gp_minimize',n_calls=100):
+def esvr(root_path,station,predict_pattern,optimizer='gp',n_calls=100,cv=6):
     logger.info("Build monoscale epsilon SVR model ...")
-    logger.info("Model information:")
-    logger.info("\tRoot path:{}".format(root_path))
-    logger.info("\tStation:{}".format(station))
-    logger.info("\tPredict pattern:{}".format(predict_pattern))
-    logger.info("\tOptimizer:{}".format(optimizer))
-    logger.info("\tNumber of calls:{}".format(n_calls))
+    logger.info("Root path:{}".format(root_path))
+    logger.info("Station:{}".format(station))
+    logger.info("Predict pattern:{}".format(predict_pattern))
+    logger.info("Optimizer:{}".format(optimizer))
+    logger.info("Number of calls:{}".format(n_calls))
     predictor = 'esvr'
     data_path = root_path + '/'+station+'/data/'+predict_pattern+'/'
     model_path = root_path+'/'+station+'/projects/'+predictor+'/'+predict_pattern+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    model_name = station+'_'+predictor
-    logger.info("\tData Path:{}".format(data_path))
-    logger.info("\tModel Path:{}".format(model_path))
-    logger.info("\tModel name:{}".format(model_name))
-
+    model_name = optimizer+'_nc'+str(n_calls)+'_cv'+str(cv)
+    logger.info("Data Path:{}".format(data_path))
+    logger.info("Model Path:{}".format(model_path))
+    logger.info("Model name:{}".format(model_name))
+    
     # Load the training, development and testing samples
     logger.info('Load learning samples...')
     train = pd.read_csv(data_path+'minmax_unsample_train.csv',index_col=False)
@@ -206,117 +206,111 @@ def esvr(root_path,station,predict_pattern,optimizer='gp_minimize',n_calls=100):
                 test_predictions = test_predictions,
                 time_cost = optimal_params['time_cost'][0],
                 )
-            sys.exit()
+    else:
+        reg = SVR(tol=1e-4)
+        # Set the space of hyper-parameters for tuning them
+        space = ESVR_SPACE
+        # Define an objective function of hyper-parameters tuning
+        @use_named_args(space)
+        def objective(**params):
+            reg.set_params(**params)
+            return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=cv,n_jobs=-1,scoring='neg_mean_squared_error'))
+        # Tuning the hyper-parameters using Bayesian Optimization based on Gaussion Process
+        start = time.process_time()
+        if optimizer=='gp':
+            res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='fr_et':
+            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='fr_rf':
+            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='dm':
+            res = dummy_minimize(objective,space,n_calls=n_calls)
+        end = time.process_time()
+        time_cost = end-start
+        dump(res,model_path+model_name+'_result.pkl',store_objective=False)
+        returned_results = load(model_path+model_name+'_result.pkl')
+
+        # Visualizing the results of hyper-parameaters tuning
+        plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
+        plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
+        plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
+
+        # Plot the optimal hyperparameters
+        logger.info('Best score=%.4f'%res.fun)
+        logger.info(""" Best parameters:
+         -C = %.8f
+         -epsilon = %.8f
+         -gamma = %.8f
+         """%(res.x[0],res.x[1],res.x[2]))
+        logger.info('Time cost:{} seconds'.format(time_cost))
+
+        # Construct the optimal hyperparameters to restore them
+        params_dict={
+            'C':res.x[0],
+            'epsilon':res.x[1],
+            'gamma':res.x[2],
+            'time_cost':time_cost,
+            'n_calls':n_calls,
+        }
+
+        # Transform the optimal hyperparameters dict to pandas DataFrame and restore it
+        params_df = pd.DataFrame(params_dict,index=[0])
+        params_df.to_csv(model_path +model_name+'_optimized_params.csv')
+
+        # Initialize a SVR with the optimal hyperparameters
+        esvr = SVR(C=res.x[0], epsilon=res.x[1], gamma=res.x[2])
+        # Do prediction with the opyimal model
+        train_predictions = esvr.fit(train_dev_x,train_dev_y).predict(train_x)
+        dev_predictions = esvr.fit(train_dev_x,train_dev_y).predict(dev_x)
+        test_predictions = esvr.fit(train_dev_x,train_dev_y).predict(test_x)
+
+        train_y=(train_y.values).flatten()
+        dev_y=(dev_y.values).flatten()
+        test_y=(test_y.values).flatten()
+
+        norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
+        sMin = norm_id['series_min'][norm_id.shape[0]-1]
+        sMax = norm_id['series_max'][norm_id.shape[0]-1]
+        logger.debug('Series Min:\n {}'.format(sMin))
+        logger.debug('Series Max:\n {}'.format(sMax))
+
+        # Renormalized the records and predictions and cap the negative predictions to 0
+        train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
+        dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
+        test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
+        train_predictions = np.multiply(train_predictions + 1, sMax -sMin) / 2 + sMin
+        train_predictions[train_predictions<0.0]=0.0
+        dev_predictions = np.multiply(dev_predictions + 1, sMax -sMin) / 2 + sMin
+        dev_predictions[dev_predictions<0.0]=0.0
+        test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
+        test_predictions[test_predictions<0.0]=0.0
+
+
+        dum_pred_results(
+            path = model_path+model_name+'.csv',
+            train_y = train_y,
+            train_predictions=train_predictions,
+            dev_y = dev_y,
+            dev_predictions = dev_predictions,
+            test_y = test_y,
+            test_predictions = test_predictions,
+            time_cost = time_cost,
+            )
+
+        plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +model_name + '_train_pred.png')
+        plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +model_name + "_dev_pred.png")
+        plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_pred.png")
+        plot_error_distribution(test_y,test_predictions,fig_savepath=model_path+model_name+"_test_error.png")
+        plt.close('all')
     
 
-    reg = SVR(tol=1e-4)
-    # Set the space of hyper-parameters for tuning them
-    optimizer = 
-    space = ESVR_SPACE
-    # Define an objective function of hyper-parameters tuning
-    @use_named_args(space)
-    def objective(**params):
-        reg.set_params(**params)
-        return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
-    # Tuning the hyper-parameters using Bayesian Optimization based on Gaussion Process
-    start = time.process_time()
-    if optimizer=='gp_minimize':
-        res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True)
-    elif optimizer=='forest_minimize_bt':
-        res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True)
-    elif optimizer=='forecast_minimize_rf':
-        res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True)
-    elif optimizer=='dummy_minimize':
-        res = dummy_minimize(objective,space,n_calls=n_calls)
-    end = time.process_time()
-    time_cost = end-start
-    dump(res,model_path+'result.pkl',store_objective=False)
-    returned_results = load(model_path+'result.pkl')
-
-    # Visualizing the results of hyper-parameaters tuning
-    plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
-    plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
-    plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
-
-    # Plot the optimal hyperparameters
-    logger.info('Best score=%.4f'%res.fun)
-    logger.info(""" Best parameters:
-     -C = %.8f
-     -epsilon = %.8f
-     -gamma = %.8f
-     """%(res.x[0],res.x[1],res.x[2]))
-    logger.info('Time cost:{} seconds'.format(time_cost))
-
-    # Construct the optimal hyperparameters to restore them
-    params_dict={
-        'C':res.x[0],
-        'epsilon':res.x[1],
-        'gamma':res.x[2],
-        'time_cost':time_cost,
-        'n_calls':n_calls,
-    }
-
-    # Transform the optimal hyperparameters dict to pandas DataFrame and restore it
-    params_df = pd.DataFrame(params_dict,index=[0])
-    params_df.to_csv(model_path +model_name+'_optimized_params.csv')
-    
-    # Initialize a SVR with the optimal hyperparameters
-    esvr = SVR(C=res.x[0], epsilon=res.x[1], gamma=res.x[2])
-    # Do prediction with the opyimal model
-    train_predictions = esvr.fit(train_dev_x,train_dev_y).predict(train_x)
-    dev_predictions = esvr.fit(train_dev_x,train_dev_y).predict(dev_x)
-    test_predictions = esvr.fit(train_dev_x,train_dev_y).predict(test_x)
-
-    train_y=(train_y.values).flatten()
-    dev_y=(dev_y.values).flatten()
-    test_y=(test_y.values).flatten()
-
-    norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
-    sMin = norm_id['series_min'][norm_id.shape[0]-1]
-    sMax = norm_id['series_max'][norm_id.shape[0]-1]
-    logger.debug('Series Min:\n {}'.format(sMin))
-    logger.debug('Series Max:\n {}'.format(sMax))
-
-    # Renormalized the records and predictions and cap the negative predictions to 0
-    train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
-    dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
-    test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
-    train_predictions = np.multiply(train_predictions + 1, sMax -sMin) / 2 + sMin
-    train_predictions[train_predictions<0.0]=0.0
-    dev_predictions = np.multiply(dev_predictions + 1, sMax -sMin) / 2 + sMin
-    dev_predictions[dev_predictions<0.0]=0.0
-    test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
-    test_predictions[test_predictions<0.0]=0.0
-
-
-    dum_pred_results(
-        path = model_path+model_name+'.csv',
-        train_y = train_y,
-        train_predictions=train_predictions,
-        dev_y = dev_y,
-        dev_predictions = dev_predictions,
-        test_y = test_y,
-        test_predictions = test_predictions,
-        time_cost = time_cost,
-        )
-
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +model_name + '_train_pred.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +model_name + "_dev_pred.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_pred.png")
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path+model_name+"_test_error.png")
-    plt.close('all')
-    
-
-def esvr_multi_seed(root_path,station,predict_pattern,optimizer='gp_minimize',n_calls=100,iterations=10):
-    """
-    """
+def esvr_multi_seed(root_path,station,predict_pattern,optimizer='gp',n_calls=100,cv=6,iterations=10):
     logger.info("Build epsilon SVR with multiple seed...")
-    logger.info("Model information:")
-    logger.info("\tRoot path:{}".format(root_path))
-    logger.info("\tStation:{}".format(station))
-    logger.info("\tPredict pattern:{}".format(predict_pattern))
-    logger.info("\tOptimizer:{}".format(optimizer))
-    logger.info("\tNumber of calls:{}".format(n_calls))
+    logger.info("Root path:{}".format(root_path))
+    logger.info("Station:{}".format(station))
+    logger.info("Predict pattern:{}".format(predict_pattern))
+    logger.info("Optimizer:{}".format(optimizer))
+    logger.info("Number of calls:{}".format(n_calls))
     
     # Set the time series and model parameters
     predictor = 'esvr'
@@ -324,11 +318,11 @@ def esvr_multi_seed(root_path,station,predict_pattern,optimizer='gp_minimize',n_
     model_path = root_path+'/'+station+'/projects/'+predictor+'/'+predict_pattern+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    logger.info("\tData Path:{}".format(data_path))
-    logger.info("\tModel Path:{}".format(model_path))
+    logger.info("Data Path:{}".format(data_path))
+    logger.info("Model Path:{}".format(model_path))
         
     for random_state in range(1,iterations+1):
-        model_name = station+'_'+predictor+'_seed'+str(random_state)
+        model_name = optimizer+'_nc'+str(n_calls)+'_cv'+str(cv)+'_seed'+str(random_state)
         logger.info('Model Name:{}'.format(model_name))
         # Load the training, development and testing samples
         train = pd.read_csv(data_path+'minmax_unsample_train.csv',index_col=False)
@@ -384,8 +378,6 @@ def esvr_multi_seed(root_path,station,predict_pattern,optimizer='gp_minimize',n_
                     test_predictions = test_predictions,
                     time_cost = optimal_params['time_cost'][0],
                     )
-                # sys.exit()
-
         else:
             reg = SVR(tol=1e-4)
             # Set the space of hyper-parameters for tuning them
@@ -394,21 +386,21 @@ def esvr_multi_seed(root_path,station,predict_pattern,optimizer='gp_minimize',n_
             @use_named_args(space)
             def objective(**params):
                 reg.set_params(**params)
-                return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
+                return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=cv,n_jobs=-1,scoring='neg_mean_squared_error'))
             # Tuning the hyper-parameters using Bayesian Optimization based on Gaussion Process
             start = time.process_time()
-            if optimizer=='gp_minimize':
-                res = gp_minimize(objective,space,n_calls=n_calls ,random_state=random_state,verbose=True)
-            elif optimizer=='forest_minimize_bt':
-                res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=random_state,verbose=True)
-            elif optimizer=='forecast_minimize_rf':
-                res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=random_state,verbose=True)
-            elif optimizer=='dummy_minimize':
+            if optimizer=='gp':
+                res = gp_minimize(objective,space,n_calls=n_calls ,random_state=random_state,verbose=True,n_jobs=-1)
+            elif optimizer=='fr_bt':
+                res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=random_state,verbose=True,n_jobs=-1)
+            elif optimizer=='fr_rf':
+                res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=random_state,verbose=True,n_jobs=-1)
+            elif optimizer=='dm':
                 res = dummy_minimize(objective,space,n_calls=n_calls)
             end = time.process_time()
             time_cost = end-start
-            dump(res,model_path+'result_seed'+str(random_state)+'.pkl',store_objective=False)
-            returned_results = load(model_path+'result_seed'+str(random_state)+'.pkl')
+            dump(res,model_path+model_name+'_result_seed'+str(random_state)+'.pkl',store_objective=False)
+            returned_results = load(model_path+model_name+'_result_seed'+str(random_state)+'.pkl')
             # Visualizing the results of hyper-parameaters tuning
             plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
             plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
@@ -473,17 +465,17 @@ def esvr_multi_seed(root_path,station,predict_pattern,optimizer='gp_minimize',n_
     plt.close('all')
         
 
-def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_minimize',wavelet_level='db10-2',n_calls=100):
+def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=6):
     # Set project parameters
     logger.info('Build one-step epsilon SVR model...')
-    logger.info('Model information:')
-    logger.info('\tRoot path:{}'.format(root_path))
-    logger.info('\tStation:{}'.format(station))
-    logger.info('\tDecomposer:{}'.format(decomposer))
-    logger.info('\tPredict pattern:{}'.format(predict_pattern))
-    logger.info('\tOptimizer:{}'.format(optimizer))
-    logger.info('\tMonther wavelet and decomposition level of WA:{}'.format(wavelet_level))
-    logger.info('\tNumber of calls:{}'.format(n_calls))
+    
+    logger.info('Root path:{}'.format(root_path))
+    logger.info('Station:{}'.format(station))
+    logger.info('Decomposer:{}'.format(decomposer))
+    logger.info('Predict pattern:{}'.format(predict_pattern))
+    logger.info('Optimizer:{}'.format(optimizer))
+    logger.info('Monther wavelet and decomposition level of WA:{}'.format(wavelet_level))
+    logger.info('Number of calls:{}'.format(n_calls))
     predictor = 'esvr'
     signals = station+'_'+decomposer
     if decomposer == 'dwt' or decomposer=='modwt':
@@ -494,9 +486,9 @@ def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_min
         model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    model_name = station+'_'+decomposer+'_'+predictor+'_'+predict_pattern
-    logger.info("\tData Path:{}".format(data_path))
-    logger.info("\tModel Path:{}".format(model_path))
+    model_name = optimizer+'_nc'+str(n_calls)+'_cv'+str(cv)
+    logger.info("Data Path:{}".format(data_path))
+    logger.info("Model Path:{}".format(model_path))
 
     # load data
     train = pd.read_csv(data_path+'minmax_unsample_train.csv')
@@ -551,113 +543,107 @@ def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_min
                 test_predictions = test_predictions,
                 time_cost = optimal_params['time_cost'][0],
             )
-            sys.exit()
+    else:
+        reg = SVR(tol=1e-4)
+        space = ESVR_SPACE
+        @use_named_args(space)
+        def objective(**params):
+            reg.set_params(**params)
+            return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=cv,n_jobs=-1,scoring='neg_mean_squared_error'))
 
+        #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
 
-    reg = SVR(tol=1e-4)
+        start = time.process_time()
+        if optimizer=='gp':
+            res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='fr_bt':
+            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='fr_rf':
+            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='dm':
+            res = dummy_minimize(objective,space,n_calls=n_calls)
+        end = time.process_time()
+        time_cost = end -start
+        dump(res,model_path+model_name+'_result.pkl',store_objective=False)
+        returned_results = load(model_path+model_name+'_result.pkl')
 
-    space = ESVR_SPACE
+        plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
+        plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
+        plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
 
-    @use_named_args(space)
-    def objective(**params):
-        reg.set_params(**params)
-        return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
+        logger.info('Best score=%.4f'%res.fun)
+        logger.info(""" Best parameters:
+         -C = %.8f
+         -epsilon = %.8f
+         -gamma = %.8f
+         """%(res.x[0],res.x[1],res.x[2]))
 
-    #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
+        logger.info('Time cost:{}'.format(time_cost))
+        params_dict={
+            'C':res.x[0],
+            'epsilon':res.x[1],
+            'gamma':res.x[2],
+            'time_cost':(time_cost),
+            'n_calls':n_calls,
+        }
 
-    start = time.process_time()
-    if optimizer=='gp_minimize':
-        res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True)
-    elif optimizer=='forest_minimize_bt':
-        res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True)
-    elif optimizer=='forecast_minimize_rf':
-        res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True)
-    elif optimizer=='dummy_minimize':
-        res = dummy_minimize(objective,space,n_calls=n_calls)
-    end = time.process_time()
-    time_cost = end -start
-    dump(res,model_path+'result.pkl',store_objective=False)
-    returned_results = load(model_path+'result.pkl')
-    
-    plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
-    plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
-    plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
-    
-    logger.info('Best score=%.4f'%res.fun)
-    logger.info(""" Best parameters:
-     -C = %.8f
-     -epsilon = %.8f
-     -gamma = %.8f
-     """%(res.x[0],res.x[1],res.x[2]))
+        params_df = pd.DataFrame(params_dict,index=[0])
+        params_df.to_csv(model_path + model_name+'_optimized_params.csv')
 
-    logger.info('Time cost:{}'.format(time_cost))
-    params_dict={
-        'C':res.x[0],
-        'epsilon':res.x[1],
-        'gamma':res.x[2],
-        'time_cost':(time_cost),
-        'n_calls':n_calls,
-    }
+        esvr = SVR(C=res.x[0], epsilon=res.x[1], gamma=res.x[2])
+        # Do prediction with the opyimal model
+        train_predictions = esvr.fit(train_dev_x,train_dev_y).predict(train_x)
+        dev_predictions = esvr.fit(train_dev_x,train_dev_y).predict(dev_x)
+        test_predictions = esvr.fit(train_dev_x,train_dev_y).predict(test_x)
 
-    params_df = pd.DataFrame(params_dict,index=[0])
-    params_df.to_csv(model_path + model_name+'_optimized_params.csv')
+        train_y=(train_y.values).flatten()
+        dev_y=(dev_y.values).flatten()
+        test_y=(test_y.values).flatten()
 
-    esvr = SVR(C=res.x[0], epsilon=res.x[1], gamma=res.x[2])
-    # Do prediction with the opyimal model
-    train_predictions = esvr.fit(train_dev_x,train_dev_y).predict(train_x)
-    dev_predictions = esvr.fit(train_dev_x,train_dev_y).predict(dev_x)
-    test_predictions = esvr.fit(train_dev_x,train_dev_y).predict(test_x)
+        norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
+        sMin = norm_id['series_min'][norm_id.shape[0]-1]
+        sMax = norm_id['series_max'][norm_id.shape[0]-1]
+        logger.debug('Series Min:\n {}'.format(sMin))
+        logger.debug('Series Max:\n {}'.format(sMax))
 
-    train_y=(train_y.values).flatten()
-    dev_y=(dev_y.values).flatten()
-    test_y=(test_y.values).flatten()
+        # Renormalized the records and predictions
+        train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
+        dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
+        test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
+        train_predictions = np.multiply(train_predictions + 1, sMax -sMin) / 2 + sMin
+        train_predictions[train_predictions<0.0]=0.0
+        dev_predictions = np.multiply(dev_predictions + 1, sMax -sMin) / 2 + sMin
+        dev_predictions[dev_predictions<0.0]=0.0
+        test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
+        test_predictions[test_predictions<0.0]=0.0
 
-    norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
-    sMin = norm_id['series_min'][norm_id.shape[0]-1]
-    sMax = norm_id['series_max'][norm_id.shape[0]-1]
-    logger.debug('Series Min:\n {}'.format(sMin))
-    logger.debug('Series Max:\n {}'.format(sMax))
+        dum_pred_results(
+            path = model_path+model_name+'.csv',
+            train_y = train_y,
+            train_predictions=train_predictions,
+            dev_y = dev_y,
+            dev_predictions = dev_predictions,
+            test_y = test_y,
+            test_predictions = test_predictions,
+            time_cost=time_cost)
 
-    # Renormalized the records and predictions
-    train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
-    dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
-    test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
-    train_predictions = np.multiply(train_predictions + 1, sMax -sMin) / 2 + sMin
-    train_predictions[train_predictions<0.0]=0.0
-    dev_predictions = np.multiply(dev_predictions + 1, sMax -sMin) / 2 + sMin
-    dev_predictions[dev_predictions<0.0]=0.0
-    test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
-    test_predictions[test_predictions<0.0]=0.0
-
-    dum_pred_results(
-        path = model_path+model_name+'.csv',
-        train_y = train_y,
-        train_predictions=train_predictions,
-        dev_y = dev_y,
-        dev_predictions = dev_predictions,
-        test_y = test_y,
-        test_predictions = test_predictions,
-        time_cost=time_cost)
-
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +model_name + '_train_pred.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +model_name + "_dev_pred.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_pred.png")
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_error.png")
-    plt.close('all')
+        plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +model_name + '_train_pred.png')
+        plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +model_name + "_dev_pred.png")
+        plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_pred.png")
+        plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_error.png")
+        plt.close('all')
     
 
-def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimizer='gp_minimize',wavelet_level='db10-2',n_calls=100,iterations=10):
-    # Set project parameters
+def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=6,iterations=10):
     logger.info('Build one-step epsilon SVR model with multiple seed...')
-    logger.info('Model information:')
-    logger.info('\tRoot path:{}'.format(root_path))
-    logger.info('\tStation:{}'.format(station))
-    logger.info('\tDecomposer:{}'.format(decomposer))
-    logger.info('\tPredict pattern:{}'.format(predict_pattern))
-    logger.info('\tOptimizer:{}'.format(optimizer))
-    logger.info('\tMonther wavelet and decomposition level of WA:{}'.format(wavelet_level))
-    logger.info('\tNumber of calls:{}'.format(n_calls))
-    logger.info('\tSeed iterations:{}'.format(iterations))
+    logger.info('Root path:{}'.format(root_path))
+    logger.info('Station:{}'.format(station))
+    logger.info('Decomposer:{}'.format(decomposer))
+    logger.info('Predict pattern:{}'.format(predict_pattern))
+    logger.info('Optimizer:{}'.format(optimizer))
+    logger.info('Monther wavelet and decomposition level of WA:{}'.format(wavelet_level))
+    logger.info('Number of calls:{}'.format(n_calls))
+    logger.info('Seed iterations:{}'.format(iterations))
     predictor = 'esvr'
     signals = station+'_'+decomposer
     if decomposer == 'dwt' or decomposer=='modwt':
@@ -668,11 +654,11 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
         model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    logger.info("\tData Path:{}".format(data_path))
-    logger.info("\tModel Path:{}".format(model_path))
+    logger.info("Data Path:{}".format(data_path))
+    logger.info("Model Path:{}".format(model_path))
 
     for random_state in range(1,iterations+1):
-        model_name = station+'_'+decomposer+'_'+predictor+'_'+predict_pattern+'_seed'+str(random_state)
+        model_name = optimizer+'_nc'+str(n_calls)+'_cv'+str(cv)+'_seed'+str(random_state)
         logger.info('Model Name:{}'.format(model_name))
         # load data
         train = pd.read_csv(data_path+'minmax_unsample_train.csv')
@@ -727,32 +713,27 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
                     test_predictions = test_predictions,
                     time_cost = optimal_params['time_cost'][0],
                 )
-                # sys.exit()
         else:
             reg = SVR(tol=1e-4)
-
             space = ESVR_SPACE
-
             @use_named_args(space)
             def objective(**params):
                 reg.set_params(**params)
-                return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
-
+                return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=cv,n_jobs=-1,scoring='neg_mean_squared_error'))
             #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
-
             start = time.process_time()
-            if optimizer=='gp_minimize':
-                res = gp_minimize(objective,space,n_calls=n_calls ,random_state=random_state,verbose=True)
-            elif optimizer=='forest_minimize_bt':
-                res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=random_state,verbose=True)
-            elif optimizer=='forecast_minimize_rf':
-                res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=random_state,verbose=True)
-            elif optimizer=='dummy_minimize':
+            if optimizer=='gp':
+                res = gp_minimize(objective,space,n_calls=n_calls ,random_state=random_state,verbose=True,n_jobs=-1)
+            elif optimizer=='fr_bt':
+                res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=random_state,verbose=True,n_jobs=-1)
+            elif optimizer=='fr_rf':
+                res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=random_state,verbose=True,n_jobs=-1)
+            elif optimizer=='dm':
                 res = dummy_minimize(objective,space,n_calls=n_calls)
             end = time.process_time()
             time_cost = end -start
-            dump(res,model_path+'result_seed'+str(random_state)+'.pkl',store_objective=False)
-            returned_results = load(model_path+'result_seed'+str(random_state)+'.pkl')
+            dump(res,model_path+model_name+'_result_seed'+str(random_state)+'.pkl',store_objective=False)
+            returned_results = load(model_path+model_name+'_result_seed'+str(random_state)+'.pkl')
 
             plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
             plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
@@ -821,19 +802,18 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
 
         
 
-def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp_minimize',wavelet_level='db10-2',n_calls=100):
-    
+def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=6):
     logger.info('Build multi-step epsilon SVR model...')
-    logger.info('Model information:')
-    logger.info('\tRoot path:{}'.format(root_path))
-    logger.info('\tStation:{}'.format(station))
-    logger.info('\tDecomposer:{}'.format(decomposer))
-    logger.info('\tPredict pattern:{}'.format(predict_pattern))
-    logger.info('\tLags:{}'.format(Lags))
-    logger.info('\tModel index:{}'.format(model_id))
-    logger.info('\tOptimizer:{}'.format(optimizer))
-    logger.info('\tMother wavelet and decomposition level of WA:{}'.format(wavelet_level))
-    logger.info('\tNumber of calls:{}'.format(n_calls))
+    
+    logger.info('Root path:{}'.format(root_path))
+    logger.info('Station:{}'.format(station))
+    logger.info('Decomposer:{}'.format(decomposer))
+    logger.info('Predict pattern:{}'.format(predict_pattern))
+    logger.info('Lags:{}'.format(lags))
+    logger.info('Model index:{}'.format(model_id))
+    logger.info('Optimizer:{}'.format(optimizer))
+    logger.info('Mother wavelet and decomposition level of WA:{}'.format(wavelet_level))
+    logger.info('Number of calls:{}'.format(n_calls))
     if model_id>len(lags):
         raise Exception("The model id exceed the number of sub-signals")
     predictor = 'esvr'
@@ -846,7 +826,7 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
         model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/s'+str(model_id)+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    model_name = station+'_'+decomposer+'_'+predictor+'_'+predict_pattern+'s'+str(model_id)
+    model_name = optimizer+'_nc'+str(n_calls)+'_cv'+str(cv)+'_s'+str(model_id)
     logger.info("Data Path:{}".format(data_path))
     logger.info("Model Path:{}".format(model_path))
     train = pd.read_csv(data_path+'minmax_unsample_train_s'+str(model_id)+'.csv')
@@ -899,32 +879,29 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
                 test_predictions = test_predictions,
                 time_cost = optimal_params['time_cost'][0],
             )
-            # sys.exit()
     else:
         reg = SVR(tol=1e-4)
-    
         space = ESVR_SPACE
-    
         @use_named_args(space)
         def objective(**params):
             reg.set_params(**params)
-            return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
+            return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=cv,n_jobs=-1,scoring='neg_mean_squared_error'))
     
         #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
     
         start = time.process_time()
-        if optimizer=='gp_minimize':
-            res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True)
-        elif optimizer=='forest_minimize_bt':
-            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True)
-        elif optimizer=='forecast_minimize_rf':
-            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True)
-        elif optimizer=='dummy_minimize':
+        if optimizer=='gp':
+            res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='fr_bt':
+            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='fr_rf':
+            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='dm':
             res = dummy_minimize(objective,space,n_calls=n_calls)
         end=time.process_time()
         time_cost = end -start
-        dump(res,model_path+'result.pkl',store_objective=False)
-        returned_results = load(model_path+'result.pkl')
+        dump(res,model_path+model_name+'_result.pkl',store_objective=False)
+        returned_results = load(model_path+model_name+'_result.pkl')
     
         plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
         plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
@@ -993,7 +970,7 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
         
 
 
-def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp_minimize',wavelet_level='db10-2',n_calls=100,iterations=10):
+def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=6,iterations=10):
     logger.info('Roo path:{}'.format(root_path))
     logger.info('Station:{}'.format(station))
     logger.info('Decomposer:{}'.format(decomposer))
@@ -1017,7 +994,7 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
         os.makedirs(model_path)
 
     for random_state in range(1,iterations+1):
-        model_name = station+'_'+decomposer+'_'+predictor+'_'+predict_pattern+'_s'+str(model_id)+'_seed'+str(random_state)
+        model_name = optimizer+'_nc'+str(n_calls)+'_cv'+str(cv)+'_s'+str(model_id)+'_seed'+str(random_state)
         logger.info("Data Path:{}".format(data_path))
         logger.info("Model Path:{}".format(model_path))
 
@@ -1071,32 +1048,29 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
                     test_predictions = test_predictions,
                     time_cost = optimal_params['time_cost'][0],
                 )
-                # sys.exit()
         else:
             reg = SVR(tol=1e-4)
-
             space = ESVR_SPACE
-
             @use_named_args(space)
             def objective(**params):
                 reg.set_params(**params)
-                return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
+                return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=cv,n_jobs=-1,scoring='neg_mean_squared_error'))
 
             #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
 
             start = time.process_time()
-            if optimizer=='gp_minimize':
-                res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True)
-            elif optimizer=='forest_minimize_bt':
-                res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True)
-            elif optimizer=='forecast_minimize_rf':
-                res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True)
-            elif optimizer=='dummy_minimize':
+            if optimizer=='gp':
+                res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True,n_jobs=-1)
+            elif optimizer=='fr_bt':
+                res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True,n_jobs=-1)
+            elif optimizer=='fr_rf':
+                res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True,n_jobs=-1)
+            elif optimizer=='dm':
                 res = dummy_minimize(objective,space,n_calls=n_calls)
             end=time.process_time()
             time_cost = end -start
-            dump(res,model_path+'result_seed'+str(random_state)+'.pkl',store_objective=False)
-            returned_results = load(model_path+'result_seed'+str(random_state)+'.pkl')
+            dump(res,model_path+model_name+'_result_seed'+str(random_state)+'.pkl',store_objective=False)
+            returned_results = load(model_path+model_name+'_result_seed'+str(random_state)+'.pkl')
             
             plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
             plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
@@ -1164,7 +1138,7 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
     plt.close('all')          
 
 
-def gbrt(root_path,station,predict_pattern,optimizer='gp_minimize',n_calls=100):
+def gbrt(root_path,station,predict_pattern,optimizer='gp',n_calls=100,cv=6):
     logger.info('Root path:{}'.format(root_path))
     logger.info('Station:{}'.format(station))
     logger.info('Predict pattern:{}'.format(predict_pattern))
@@ -1175,18 +1149,10 @@ def gbrt(root_path,station,predict_pattern,optimizer='gp_minimize',n_calls=100):
     model_path = root_path+'/'+station+'/projects/'+predictor+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    model_name = station+'_'+predictor
+    model_name = optimizer+'_nc'+str(n_calls)+'_cv'+str(cv)
 
     logger.info("Data Path:{}".format(data_path))
     logger.info("Model Path:{}".format(model_path))
-
-    
-    if os.path.exists(model_path +model_name+'_optimized_params.csv'):
-        optimal_params = pd.read_csv(model_path +model_name+'_optimized_params.csv')
-        pre_n_calls = optimal_params['n_calls'][0]
-        if pre_n_calls==n_calls:
-            logger.info("The n_calls="+str(n_calls)+" was already tuned")
-            sys.exit()
 
     # load data
     train = pd.read_csv(data_path+'minmax_unsample_train.csv')
@@ -1195,9 +1161,7 @@ def gbrt(root_path,station,predict_pattern,optimizer='gp_minimize',n_calls=100):
     train_dev = pd.concat([train,dev],axis=0)
     # shuffle
     train_dev = train_dev.sample(frac=1)
-    
     assert train.shape[1]==dev.shape[1]==test.shape[1]==train_dev.shape[1]
-    
     train_y = train['Y']
     train_x = train.drop('Y', axis=1)
     dev_y = dev['Y']
@@ -1206,121 +1170,127 @@ def gbrt(root_path,station,predict_pattern,optimizer='gp_minimize',n_calls=100):
     test_x = test.drop('Y', axis=1)
     train_dev_y = train_dev['Y']
     train_dev_x = train_dev.drop('Y', axis=1)
-
-    # Get the feature num
-    n_features = train_dev_x.shape[1]
-    reg = GradientBoostingRegressor(n_estimators=100,random_state=0)
-
-    # The list hyper-parameters we want
-    space = [
-        Integer(1,25,name='max_depth'),
-        Real(10**-5,10**0,'log-uniform',name='learning_rate'),
-        Integer(1,n_features,name='max_features'),
-        Integer(2,100,name='min_samples_split'),
-        Integer(1,100,name='min_samples_leaf'),
-    ]
-
-    @use_named_args(space)
-    def objective(**params):
-        reg.set_params(**params)
-        return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
-
-    #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
-
-    start = time.process_time()
-    if optimizer=='gp_minimize':
-        res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True)
-    elif optimizer=='forest_minimize_bt':
-        res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True)
-    elif optimizer=='forecast_minimize_rf':
-        res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True)
-    elif optimizer=='dummy_minimize':
-        res = dummy_minimize(objective,space,n_calls=n_calls)
-    end=time.process_time()
-    time_cost = end-start
-    dump(res,model_path+'result.pkl',store_objective=False)
-    returned_results = load(model_path+'result.pkl')
     
-    plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_objective.png')
-    plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_evaluation.png')
-    plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
-    
+    if os.path.exists(model_path +model_name+'_optimized_params.csv'):
+        optimal_params = pd.read_csv(model_path +model_name+'_optimized_params.csv')
+        pre_n_calls = optimal_params['n_calls'][0]
+        if pre_n_calls==n_calls:
+            logger.info("The n_calls="+str(n_calls)+" was already tuned")
+    else:
+        # Get the feature num
+        n_features = train_dev_x.shape[1]
+        reg = GradientBoostingRegressor(n_estimators=100,random_state=0)
 
-    logger.info('Best score=%.4f'%res.fun)
-    logger.info("""Best parameters:
-    - max_depth=%d
-    - learning_rate=%.6f
-    - max_features=%d
-    - min_samples_split=%d
-    - min_samples_leaf=%d""" % (res.x[0], res.x[1], res.x[2], res.x[3],
-                                res.x[4]))
-    # end=datetime.datetime.now()
-    logger.info('Time cost:{}'.format(time_cost))
+        # The list hyper-parameters we want
+        space = [
+            Integer(1,25,name='max_depth'),
+            Real(10**-5,10**0,'log-uniform',name='learning_rate'),
+            Integer(1,n_features,name='max_features'),
+            Integer(2,100,name='min_samples_split'),
+            Integer(1,100,name='min_samples_leaf'),
+        ]
 
-    params_dict={
-        'max_depth':res.x[0],
-        'learning_rate':res.x[1],
-        'max_features':res.x[2],
-        'min_samples_split':res.x[3],
-        'min_samples_leaf':res.x[4],
-        'time_cost':time_cost,
-        'n_calls':n_calls,
-    }
+        @use_named_args(space)
+        def objective(**params):
+            reg.set_params(**params)
+            return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=cv,n_jobs=-1,scoring='neg_mean_squared_error'))
 
-    params_df = pd.DataFrame(params_dict,index=[0])
-    params_df.to_csv(model_path +model_name+'_optimized_params.csv')
+        #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
 
-    GBR = GradientBoostingRegressor(
-        max_depth=res.x[0],
-        learning_rate=res.x[1],
-        max_features=res.x[2],
-        min_samples_split=res.x[3],
-        min_samples_leaf=res.x[4])
+        start = time.process_time()
+        if optimizer=='gp':
+            res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='fr_bt':
+            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='fr_rf':
+            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='dm':
+            res = dummy_minimize(objective,space,n_calls=n_calls)
+        end=time.process_time()
+        time_cost = end-start
+        dump(res,model_path+model_name+'_result.pkl',store_objective=False)
+        returned_results = load(model_path+model_name+'_result.pkl')
 
-    # Do prediction with the opyimal model
-    train_predictions = GBR.fit(train_dev_x,train_dev_y).predict(train_x)
-    dev_predictions = GBR.fit(train_dev_x,train_dev_y).predict(dev_x)
-    test_predictions = GBR.fit(train_dev_x,train_dev_y).predict(test_x)
-
-    train_y=(train_y.values).flatten()
-    dev_y=(dev_y.values).flatten()
-    test_y=(test_y.values).flatten()
-
-    norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
-    sMin = norm_id['series_min'][norm_id.shape[0]-1]
-    sMax = norm_id['series_max'][norm_id.shape[0]-1]
-    logger.debug('Series Min:\n {}'.format(sMin))
-    logger.debug('Series Max:\n {}'.format(sMax))
-
-    # Renormalized the records and predictions
-    train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
-    dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
-    test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
-    train_predictions = np.multiply(train_predictions + 1, sMax -sMin) / 2 + sMin
-    train_predictions[train_predictions<0.0]=0.0
-    dev_predictions = np.multiply(dev_predictions + 1, sMax -sMin) / 2 + sMin
-    dev_predictions[dev_predictions<0.0]=0.0
-    test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
-    test_predictions[test_predictions<0.0]=0.0
+        plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_objective.png')
+        plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_evaluation.png')
+        plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
 
 
-    dum_pred_results(
-        path = model_path+model_name+'.csv',
-        train_y = train_y,
-        train_predictions=train_predictions,
-        dev_y = dev_y,
-        dev_predictions = dev_predictions,
-        test_y = test_y,
-        test_predictions = test_predictions,
-        time_cost=time_cost)
+        logger.info('Best score=%.4f'%res.fun)
+        logger.info("""Best parameters:
+        - max_depth=%d
+        - learning_rate=%.6f
+        - max_features=%d
+        - min_samples_split=%d
+        - min_samples_leaf=%d""" % (res.x[0], res.x[1], res.x[2], res.x[3],
+                                    res.x[4]))
+        # end=datetime.datetime.now()
+        logger.info('Time cost:{}'.format(time_cost))
 
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +model_name + '_train_pred.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +model_name + "_dev_pred.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_pred.png")
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_error.png")
-    plt.close('all')
+        params_dict={
+            'max_depth':res.x[0],
+            'learning_rate':res.x[1],
+            'max_features':res.x[2],
+            'min_samples_split':res.x[3],
+            'min_samples_leaf':res.x[4],
+            'time_cost':time_cost,
+            'n_calls':n_calls,
+        }
 
-def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp_minimize',wavelet_level='db10-2',n_calls=100):
+        params_df = pd.DataFrame(params_dict,index=[0])
+        params_df.to_csv(model_path +model_name+'_optimized_params.csv')
+
+        GBR = GradientBoostingRegressor(
+            max_depth=res.x[0],
+            learning_rate=res.x[1],
+            max_features=res.x[2],
+            min_samples_split=res.x[3],
+            min_samples_leaf=res.x[4])
+
+        # Do prediction with the opyimal model
+        train_predictions = GBR.fit(train_dev_x,train_dev_y).predict(train_x)
+        dev_predictions = GBR.fit(train_dev_x,train_dev_y).predict(dev_x)
+        test_predictions = GBR.fit(train_dev_x,train_dev_y).predict(test_x)
+
+        train_y=(train_y.values).flatten()
+        dev_y=(dev_y.values).flatten()
+        test_y=(test_y.values).flatten()
+
+        norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
+        sMin = norm_id['series_min'][norm_id.shape[0]-1]
+        sMax = norm_id['series_max'][norm_id.shape[0]-1]
+        logger.debug('Series Min:\n {}'.format(sMin))
+        logger.debug('Series Max:\n {}'.format(sMax))
+
+        # Renormalized the records and predictions
+        train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
+        dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
+        test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
+        train_predictions = np.multiply(train_predictions + 1, sMax -sMin) / 2 + sMin
+        train_predictions[train_predictions<0.0]=0.0
+        dev_predictions = np.multiply(dev_predictions + 1, sMax -sMin) / 2 + sMin
+        dev_predictions[dev_predictions<0.0]=0.0
+        test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
+        test_predictions[test_predictions<0.0]=0.0
+
+
+        dum_pred_results(
+            path = model_path+model_name+'.csv',
+            train_y = train_y,
+            train_predictions=train_predictions,
+            dev_y = dev_y,
+            dev_predictions = dev_predictions,
+            test_y = test_y,
+            test_predictions = test_predictions,
+            time_cost=time_cost)
+
+        plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +model_name + '_train_pred.png')
+        plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +model_name + "_dev_pred.png")
+        plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_pred.png")
+        plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_error.png")
+        plt.close('all')
+
+def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=6):
     logger.info('Roo path:{}'.format(root_path))
     logger.info('Station:{}'.format(station))
     logger.info('Decomposer:{}'.format(decomposer))
@@ -1337,18 +1307,10 @@ def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp_min
         model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    model_name = station+'_'+decomposer+'_'+predictor+'_'+predict_pattern
+    model_name = optimizer+'_nc'+str(n_calls)+'_cv'+str(cv)
 
     logger.info("Data Path:{}".format(data_path))
     logger.info("Model Path:{}".format(model_path))
-
-    
-    if os.path.exists(model_path + model_name+ '_optimized_params.csv'):
-        optimal_params = pd.read_csv(model_path + model_name+ '_optimized_params.csv')
-        pre_n_calls = optimal_params['n_calls'][0]
-        if pre_n_calls==n_calls:
-            logger.info("The n_calls="+str(n_calls)+" was already tuned")
-            sys.exit()
 
     # load data
     train = pd.read_csv(data_path+'minmax_unsample_train.csv')
@@ -1367,121 +1329,126 @@ def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp_min
     train_dev_y = train_dev['Y']
     train_dev_x = train_dev.drop('Y', axis=1)
     
-    # Get the feature num
-    n_features = train_dev_x.shape[1]
-    reg = GradientBoostingRegressor(n_estimators=100,random_state=0)
+    if os.path.exists(model_path + model_name+ '_optimized_params.csv'):
+        optimal_params = pd.read_csv(model_path + model_name+ '_optimized_params.csv')
+        pre_n_calls = optimal_params['n_calls'][0]
+        if pre_n_calls==n_calls:
+            logger.info("The n_calls="+str(n_calls)+" was already tuned")
+    else:
+        n_features = train_dev_x.shape[1]
+        reg = GradientBoostingRegressor(n_estimators=100,random_state=0)
 
-    # The list hyper-parameters we want
-    space = [
-        Integer(1,25,name='max_depth'),
-        Real(10**-5,10**0,'log-uniform',name='learning_rate'),
-        Integer(1,n_features,name='max_features'),
-        Integer(2,100,name='min_samples_split'),
-        Integer(1,100,name='min_samples_leaf'),
-    ]
+        # The list hyper-parameters we want
+        space = [
+            Integer(1,25,name='max_depth'),
+            Real(10**-5,10**0,'log-uniform',name='learning_rate'),
+            Integer(1,n_features,name='max_features'),
+            Integer(2,100,name='min_samples_split'),
+            Integer(1,100,name='min_samples_leaf'),
+        ]
 
-    @use_named_args(space)
-    def objective(**params):
-        reg.set_params(**params)
-        return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
+        @use_named_args(space)
+        def objective(**params):
+            reg.set_params(**params)
+            return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=cv,n_jobs=-1,scoring='neg_mean_squared_error'))
 
-    #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
+        #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
 
-    start = time.process_time()
-    if optimizer=='gp_minimize':
-        res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True)
-    elif optimizer=='forest_minimize_bt':
-        res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True)
-    elif optimizer=='forecast_minimize_rf':
-        res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True)
-    elif optimizer=='dummy_minimize':
-        res = dummy_minimize(objective,space,n_calls=n_calls)
-    end=time.process_time()
-    time_cost = end - start
-    dump(res,model_path+'result.pkl',store_objective=False)
-    returned_results = load(model_path+'result.pkl')
+        start = time.process_time()
+        if optimizer=='gp':
+            res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='fr_bt':
+            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='fr_rf':
+            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='dm':
+            res = dummy_minimize(objective,space,n_calls=n_calls)
+        end=time.process_time()
+        time_cost = end - start
+        dump(res,model_path+model_name+'_result.pkl',store_objective=False)
+        returned_results = load(model_path+model_name+'_result.pkl')
 
-    plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_objective.png')
-    plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_evaluation.png')
-    plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
-    
-    
-    logger.info('Best score=%.4f'%res.fun)
-    logger.info("""Best parameters:
-    - max_depth=%d
-    - learning_rate=%.6f
-    - max_features=%d
-    - min_samples_split=%d
-    - min_samples_leaf=%d""" % (res.x[0], res.x[1], res.x[2], res.x[3],
-                                res.x[4]))
-    # end=datetime.datetime.now()
-    logger.info('Time cost:{}'.format(time_cost))
-
-    params_dict={
-        'max_depth':res.x[0],
-        'learning_rate':res.x[1],
-        'max_features':res.x[2],
-        'min_samples_split':res.x[3],
-        'min_samples_leaf':res.x[4],
-        'time_cost':(time_cost),
-        'n_calls':n_calls,
-    }
-
-    params_df = pd.DataFrame(params_dict,index=[0])
-    params_df.to_csv(model_path + model_name+ '_optimized_params.csv')
-
-    GBR = GradientBoostingRegressor(
-        max_depth=res.x[0],
-        learning_rate=res.x[1],
-        max_features=res.x[2],
-        min_samples_split=res.x[3],
-        min_samples_leaf=res.x[4])
-
-    # Do prediction with the opyimal model
-    train_predictions = GBR.fit(train_dev_x,train_dev_y).predict(train_x)
-    dev_predictions = GBR.fit(train_dev_x,train_dev_y).predict(dev_x)
-    test_predictions = GBR.fit(train_dev_x,train_dev_y).predict(test_x)
-
-    train_y=(train_y.values).flatten()
-    dev_y=(dev_y.values).flatten()
-    test_y=(test_y.values).flatten()
-
-    norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
-    sMin = norm_id['series_min'][norm_id.shape[0]-1]
-    sMax = norm_id['series_max'][norm_id.shape[0]-1]
-    logger.debug('Series Min:\n {}'.format(sMin))
-    logger.debug('Series Max:\n {}'.format(sMax))
-
-    # Renormalized the records and predictions
-    train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
-    dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
-    test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
-    train_predictions = np.multiply(train_predictions + 1, sMax -sMin) / 2 + sMin
-    train_predictions[train_predictions<0.0]=0.0
-    dev_predictions = np.multiply(dev_predictions + 1, sMax -sMin) / 2 + sMin
-    dev_predictions[dev_predictions<0.0]=0.0
-    test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
-    test_predictions[test_predictions<0.0]=0.0
+        plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_objective.png')
+        plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_evaluation.png')
+        plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
 
 
-    dum_pred_results(
-        path = model_path+model_name+'.csv',
-        train_y = train_y,
-        train_predictions=train_predictions,
-        dev_y = dev_y,
-        dev_predictions = dev_predictions,
-        test_y = test_y,
-        test_predictions = test_predictions,
-        time_cost=time_cost)
+        logger.info('Best score=%.4f'%res.fun)
+        logger.info("""Best parameters:
+        - max_depth=%d
+        - learning_rate=%.6f
+        - max_features=%d
+        - min_samples_split=%d
+        - min_samples_leaf=%d""" % (res.x[0], res.x[1], res.x[2], res.x[3],
+                                    res.x[4]))
+        # end=datetime.datetime.now()
+        logger.info('Time cost:{}'.format(time_cost))
 
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + model_name + '_train_pred.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + model_name + "_dev_pred.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_pred.png")
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_error.png",)
-    plt.close('all')
+        params_dict={
+            'max_depth':res.x[0],
+            'learning_rate':res.x[1],
+            'max_features':res.x[2],
+            'min_samples_split':res.x[3],
+            'min_samples_leaf':res.x[4],
+            'time_cost':(time_cost),
+            'n_calls':n_calls,
+        }
+
+        params_df = pd.DataFrame(params_dict,index=[0])
+        params_df.to_csv(model_path + model_name+ '_optimized_params.csv')
+
+        GBR = GradientBoostingRegressor(
+            max_depth=res.x[0],
+            learning_rate=res.x[1],
+            max_features=res.x[2],
+            min_samples_split=res.x[3],
+            min_samples_leaf=res.x[4])
+
+        # Do prediction with the opyimal model
+        train_predictions = GBR.fit(train_dev_x,train_dev_y).predict(train_x)
+        dev_predictions = GBR.fit(train_dev_x,train_dev_y).predict(dev_x)
+        test_predictions = GBR.fit(train_dev_x,train_dev_y).predict(test_x)
+
+        train_y=(train_y.values).flatten()
+        dev_y=(dev_y.values).flatten()
+        test_y=(test_y.values).flatten()
+
+        norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
+        sMin = norm_id['series_min'][norm_id.shape[0]-1]
+        sMax = norm_id['series_max'][norm_id.shape[0]-1]
+        logger.debug('Series Min:\n {}'.format(sMin))
+        logger.debug('Series Max:\n {}'.format(sMax))
+
+        # Renormalized the records and predictions
+        train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
+        dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
+        test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
+        train_predictions = np.multiply(train_predictions + 1, sMax -sMin) / 2 + sMin
+        train_predictions[train_predictions<0.0]=0.0
+        dev_predictions = np.multiply(dev_predictions + 1, sMax -sMin) / 2 + sMin
+        dev_predictions[dev_predictions<0.0]=0.0
+        test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
+        test_predictions[test_predictions<0.0]=0.0
 
 
-def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp_minimize',wavelet_level='db10-2',n_calls=100):
+        dum_pred_results(
+            path = model_path+model_name+'.csv',
+            train_y = train_y,
+            train_predictions=train_predictions,
+            dev_y = dev_y,
+            dev_predictions = dev_predictions,
+            test_y = test_y,
+            test_predictions = test_predictions,
+            time_cost=time_cost)
+
+        plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + model_name + '_train_pred.png')
+        plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + model_name + "_dev_pred.png")
+        plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_pred.png")
+        plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_error.png",)
+        plt.close('all')
+
+
+def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=6):
     logger.info('Roo path:{}'.format(root_path))
     logger.info('Station:{}'.format(station))
     logger.info('Decomposer:{}'.format(decomposer))
@@ -1511,14 +1478,6 @@ def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,o
     logger.info("Data Path:{}".format(data_path))
     logger.info("Model Path:{}".format(model_path))
 
-    
-    if os.path.exists(model_path + model_name+'_optimized_params_s' + str(model_id) +'.csv'):
-        optimal_params = pd.read_csv(model_path + model_name+'_optimized_params_s' + str(model_id) +'.csv')
-        pre_n_calls = optimal_params['n_calls'][0]
-        if pre_n_calls==n_calls:
-            logger.info("The n_calls="+str(n_calls)+" was already tuned")
-            sys.exit()
-
     # load data
     train = pd.read_csv(data_path+'minmax_unsample_train_s'+str(model_id)+'.csv')
     dev = pd.read_csv(data_path+'minmax_unsample_dev_s'+str(model_id)+'.csv')
@@ -1536,115 +1495,120 @@ def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,o
     train_dev_y = train_dev['Y']
     train_dev_x = train_dev.drop('Y', axis=1)
     
-    # Get the feature num
-    n_features = train_dev_x.shape[1]
-    reg = GradientBoostingRegressor(n_estimators=100,random_state=0)
+    if os.path.exists(model_path + model_name+'_optimized_params_s' + str(model_id) +'.csv'):
+        optimal_params = pd.read_csv(model_path + model_name+'_optimized_params_s' + str(model_id) +'.csv')
+        pre_n_calls = optimal_params['n_calls'][0]
+        if pre_n_calls==n_calls:
+            logger.info("The n_calls="+str(n_calls)+" was already tuned")
+    else:
+        n_features = train_dev_x.shape[1]
+        reg = GradientBoostingRegressor(n_estimators=100,random_state=0)
 
-    # The list hyper-parameters we want
-    space = [
-        Integer(1,25,name='max_depth'),
-        Real(10**-5,10**0,'log-uniform',name='learning_rate'),
-        Integer(1,n_features,name='max_features'),
-        Integer(2,100,name='min_samples_split'),
-        Integer(1,100,name='min_samples_leaf'),
-    ]
+        # The list hyper-parameters we want
+        space = [
+            Integer(1,25,name='max_depth'),
+            Real(10**-5,10**0,'log-uniform',name='learning_rate'),
+            Integer(1,n_features,name='max_features'),
+            Integer(2,100,name='min_samples_split'),
+            Integer(1,100,name='min_samples_leaf'),
+        ]
 
-    @use_named_args(space)
-    def objective(**params):
-        reg.set_params(**params)
-        return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
+        @use_named_args(space)
+        def objective(**params):
+            reg.set_params(**params)
+            return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=cv,n_jobs=-1,scoring='neg_mean_squared_error'))
 
-    #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
+        #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
 
-    start = time.process_time()
-    if optimizer=='gp_minimize':
-        res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True)
-    elif optimizer=='forest_minimize_bt':
-        res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True)
-    elif optimizer=='forecast_minimize_rf':
-        res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True)
-    elif optimizer=='dummy_minimize':
-        res = dummy_minimize(objective,space,n_calls=n_calls)
-    end=time.process_time()
-    time_cost = end -start
-    dump(res,model_path+'result.pkl',store_objective=False)
-    returned_results = load(model_path+'result.pkl')
-    
-    plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_objective.png')
-    plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_evaluation.png')
-    plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
-    
+        start = time.process_time()
+        if optimizer=='gp':
+            res = gp_minimize(objective,space,n_calls=n_calls ,random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='fr_bt':
+            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='ET',random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='fr_rf':
+            res = forest_minimize(objective,space,n_calls=n_calls,base_estimator='RF',random_state=0,verbose=True,n_jobs=-1)
+        elif optimizer=='dm':
+            res = dummy_minimize(objective,space,n_calls=n_calls)
+        end=time.process_time()
+        time_cost = end -start
+        dump(res,model_path+model_name+'_result.pkl',store_objective=False)
+        returned_results = load(model_path+model_name+'_result.pkl')
 
-    logger.info('Best score=%.4f'%res.fun)
-    logger.info("""Best parameters:
-    - max_depth=%d
-    - learning_rate=%.6f
-    - max_features=%d
-    - min_samples_split=%d
-    - min_samples_leaf=%d""" % (res.x[0], res.x[1], res.x[2], res.x[3],
-                                res.x[4]))
-    # end=datetime.datetime.now()
-    logger.info('Time cost:{}'.format(time_cost))
-
-    params_dict={
-        'max_depth':res.x[0],
-        'learning_rate':res.x[1],
-        'max_features':res.x[2],
-        'min_samples_split':res.x[3],
-        'min_samples_leaf':res.x[4],
-        'time_cost':(time_cost),
-        'n_calls':n_calls,
-    }
-
-    params_df = pd.DataFrame(params_dict,index=[0])
-    params_df.to_csv(model_path + model_name+'_optimized_params_s' + str(model_id) +'.csv')
-
-    GBR = GradientBoostingRegressor(
-        max_depth=res.x[0],
-        learning_rate=res.x[1],
-        max_features=res.x[2],
-        min_samples_split=res.x[3],
-        min_samples_leaf=res.x[4])
-
-    # Do prediction with the opyimal model
-    train_predictions = GBR.fit(train_dev_x,train_dev_y).predict(train_x)
-    dev_predictions = GBR.fit(train_dev_x,train_dev_y).predict(dev_x)
-    test_predictions = GBR.fit(train_dev_x,train_dev_y).predict(test_x)
-
-    train_y=(train_y.values).flatten()
-    dev_y=(dev_y.values).flatten()
-    test_y=(test_y.values).flatten()
-
-    norm_id = pd.read_csv(data_path + 'norm_unsample_id_s' + str(model_id) + '.csv')
-    sMin = norm_id['series_min'][norm_id.shape[0]-1]
-    sMax = norm_id['series_max'][norm_id.shape[0]-1]
-    logger.debug('Series Min:\n {}'.format(sMin))
-    logger.debug('Series Max:\n {}'.format(sMax))
-
-    # Renormalized the records and predictions
-    train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
-    dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
-    test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
-    train_predictions = np.multiply(train_predictions + 1, sMax -sMin) / 2 + sMin
-    dev_predictions = np.multiply(dev_predictions + 1, sMax -sMin) / 2 + sMin
-    test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
+        plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_objective.png')
+        plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_evaluation.png')
+        plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
 
 
-    dum_pred_results(
-        path = model_path+model_name+'.csv',
-        train_y = train_y,
-        train_predictions=train_predictions,
-        dev_y = dev_y,
-        dev_predictions = dev_predictions,
-        test_y = test_y,
-        test_predictions = test_predictions,
-        time_cost=time_cost)
+        logger.info('Best score=%.4f'%res.fun)
+        logger.info("""Best parameters:
+        - max_depth=%d
+        - learning_rate=%.6f
+        - max_features=%d
+        - min_samples_split=%d
+        - min_samples_leaf=%d""" % (res.x[0], res.x[1], res.x[2], res.x[3],
+                                    res.x[4]))
+        # end=datetime.datetime.now()
+        logger.info('Time cost:{}'.format(time_cost))
 
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + model_name + '_train_pred.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + model_name + "_dev_pred.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_pred.png")
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_error.png")
-    plt.close('all')
+        params_dict={
+            'max_depth':res.x[0],
+            'learning_rate':res.x[1],
+            'max_features':res.x[2],
+            'min_samples_split':res.x[3],
+            'min_samples_leaf':res.x[4],
+            'time_cost':(time_cost),
+            'n_calls':n_calls,
+        }
+
+        params_df = pd.DataFrame(params_dict,index=[0])
+        params_df.to_csv(model_path + model_name+'_optimized_params_s' + str(model_id) +'.csv')
+
+        GBR = GradientBoostingRegressor(
+            max_depth=res.x[0],
+            learning_rate=res.x[1],
+            max_features=res.x[2],
+            min_samples_split=res.x[3],
+            min_samples_leaf=res.x[4])
+
+        # Do prediction with the opyimal model
+        train_predictions = GBR.fit(train_dev_x,train_dev_y).predict(train_x)
+        dev_predictions = GBR.fit(train_dev_x,train_dev_y).predict(dev_x)
+        test_predictions = GBR.fit(train_dev_x,train_dev_y).predict(test_x)
+
+        train_y=(train_y.values).flatten()
+        dev_y=(dev_y.values).flatten()
+        test_y=(test_y.values).flatten()
+
+        norm_id = pd.read_csv(data_path + 'norm_unsample_id_s' + str(model_id) + '.csv')
+        sMin = norm_id['series_min'][norm_id.shape[0]-1]
+        sMax = norm_id['series_max'][norm_id.shape[0]-1]
+        logger.debug('Series Min:\n {}'.format(sMin))
+        logger.debug('Series Max:\n {}'.format(sMax))
+
+        # Renormalized the records and predictions
+        train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
+        dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
+        test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
+        train_predictions = np.multiply(train_predictions + 1, sMax -sMin) / 2 + sMin
+        dev_predictions = np.multiply(dev_predictions + 1, sMax -sMin) / 2 + sMin
+        test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
+
+
+        dum_pred_results(
+            path = model_path+model_name+'.csv',
+            train_y = train_y,
+            train_predictions=train_predictions,
+            dev_y = dev_y,
+            dev_predictions = dev_predictions,
+            test_y = test_y,
+            test_predictions = test_predictions,
+            time_cost=time_cost)
+
+        plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + model_name + '_train_pred.png')
+        plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + model_name + "_dev_pred.png")
+        plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_pred.png")
+        plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_error.png")
+        plt.close('all')
 
 def lstm(root_path,station,predict_pattern,seed,
     n_epochs=1000,
@@ -1661,29 +1625,29 @@ def lstm(root_path,station,predict_pattern,seed,
     ):
     logger.info('Build monoscale LSTM model...')
     logger.info('Model informattion:')
-    logger.info('\tRoot path:{}'.format(root_path))
-    logger.info('\tStation:{}'.format(station))
-    logger.info('\tPredict pattern:{}'.format(predict_pattern))
-    logger.info('\tSeed:{}'.format(seed))
-    logger.info('\tNumber of epochs:{}'.format(n_epochs))
-    logger.info('\tBatch size:{}'.format(batch_size))
-    logger.info('\tLearning rate:{}'.format(learn_rate))
-    logger.info('\tDecay rate of learning rate:{}'.format(decay_rate))
-    logger.info('\tNumber of hidden layers:{}'.format(n_hidden_layers))
-    logger.info('\tNumber of hidden units:{}'.format(hidden_units))
-    logger.info('\tDropout rates:{}'.format(dropout_rates))
-    logger.info('\tEarly stoping:{}'.format(early_stop))
-    logger.info('\tRetrain model:{}'.format(retrain))
-    logger.info('\tWarm up:{}'.format(warm_up))
-    logger.info('\tInitial epoch of warm up:{}'.format(initial_epoch))
+    logger.info('Root path:{}'.format(root_path))
+    logger.info('Station:{}'.format(station))
+    logger.info('Predict pattern:{}'.format(predict_pattern))
+    logger.info('Seed:{}'.format(seed))
+    logger.info('Number of epochs:{}'.format(n_epochs))
+    logger.info('Batch size:{}'.format(batch_size))
+    logger.info('Learning rate:{}'.format(learn_rate))
+    logger.info('Decay rate of learning rate:{}'.format(decay_rate))
+    logger.info('Number of hidden layers:{}'.format(n_hidden_layers))
+    logger.info('Number of hidden units:{}'.format(hidden_units))
+    logger.info('Dropout rates:{}'.format(dropout_rates))
+    logger.info('Early stoping:{}'.format(early_stop))
+    logger.info('Retrain model:{}'.format(retrain))
+    logger.info('Warm up:{}'.format(warm_up))
+    logger.info('Initial epoch of warm up:{}'.format(initial_epoch))
 
     predictor = 'lstm'
     data_path = root_path + '/'+station+'/data/'+predict_pattern+'/'
     model_path = root_path+'/'+station+'/projects/'+predictor+'/'+predict_pattern+'/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    logger.info('\tData path:{}'.format(data_path))
-    logger.info('\tModel path:{}'.format(model_path))
+    logger.info('Data path:{}'.format(data_path))
+    logger.info('Model path:{}'.format(model_path))
 
     # 1.Import the sampled normalized data set from disk
     logger.info('Load learning samples...')
@@ -1922,23 +1886,23 @@ def one_step_lstm(
     ):
     logger.info('Build one-step LSTM model...')
     logger.info('Model informattion:')
-    logger.info('\tRoot path:{}'.format(root_path))
-    logger.info('\tStation:{}'.format(station))
-    logger.info('\tDecomposer:{}'.format(decomposer))
-    logger.info('\tPredict pattern:{}'.format(predict_pattern))
-    logger.info('\tSeed:{}'.format(seed))
-    logger.info('\tMonther wavelet and decomposition level of WA:{}'.format(wavelet_level))
-    logger.info('\tNumber of epochs:{}'.format(n_epochs))
-    logger.info('\tBatch size:{}'.format(batch_size))
-    logger.info('\tLearning rate:{}'.format(learn_rate))
-    logger.info('\tDecay rate of learning rate:{}'.format(decay_rate))
-    logger.info('\tNumber of hidden layers:{}'.format(n_hidden_layers))
-    logger.info('\tNumber of hidden units:{}'.format(hidden_units))
-    logger.info('\tDropout rates:{}'.format(dropout_rates))
-    logger.info('\tEarly stoping:{}'.format(early_stop))
-    logger.info('\tRetrain model:{}'.format(retrain))
-    logger.info('\tWarm up:{}'.format(warm_up))
-    logger.info('\tInitial epoch of warm up:{}'.format(initial_epoch))
+    logger.info('Root path:{}'.format(root_path))
+    logger.info('Station:{}'.format(station))
+    logger.info('Decomposer:{}'.format(decomposer))
+    logger.info('Predict pattern:{}'.format(predict_pattern))
+    logger.info('Seed:{}'.format(seed))
+    logger.info('Monther wavelet and decomposition level of WA:{}'.format(wavelet_level))
+    logger.info('Number of epochs:{}'.format(n_epochs))
+    logger.info('Batch size:{}'.format(batch_size))
+    logger.info('Learning rate:{}'.format(learn_rate))
+    logger.info('Decay rate of learning rate:{}'.format(decay_rate))
+    logger.info('Number of hidden layers:{}'.format(n_hidden_layers))
+    logger.info('Number of hidden units:{}'.format(hidden_units))
+    logger.info('Dropout rates:{}'.format(dropout_rates))
+    logger.info('Early stoping:{}'.format(early_stop))
+    logger.info('Retrain model:{}'.format(retrain))
+    logger.info('Warm up:{}'.format(warm_up))
+    logger.info('Initial epoch of warm up:{}'.format(initial_epoch))
 
     # Set project parameters
     predictor = 'lstm'
@@ -1952,8 +1916,8 @@ def one_step_lstm(
         model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    logger.info('\tData path:{}'.format(data_path))
-    logger.info('\tModel path:{}'.format(model_path))
+    logger.info('Data path:{}'.format(data_path))
+    logger.info('Model path:{}'.format(model_path))
     ######################################################
    
     logger.info('Load learning samples...')
@@ -2236,25 +2200,25 @@ def multi_step_lstm(
 ):
     logger.info('Build multi-step LSTM model...')
     logger.info('Model informattion:')
-    logger.info('\tRoot path:{}'.format(root_path))
-    logger.info('\tStation:{}'.format(station))
-    logger.info('\tDecomposer:{}'.format(decomposer))
-    logger.info('\tPredict pattern:{}'.format(predict_pattern))
-    logger.info('\tLags:{}'.format(lags))
-    logger.info('\tModel index:{}'.format(model_id))
-    logger.info('\tSeed:{}'.format(seed))
-    logger.info('\tMonther wavelet and decomposition level of WA:{}'.format(wavelet_level))
-    logger.info('\tNumber of epochs:{}'.format(n_epochs))
-    logger.info('\tBatch size:{}'.format(batch_size))
-    logger.info('\tLearning rate:{}'.format(learn_rate))
-    logger.info('\tDecay rate of learning rate:{}'.format(decay_rate))
-    logger.info('\tNumber of hidden layers:{}'.format(n_hidden_layers))
-    logger.info('\tNumber of hidden units:{}'.format(hidden_units))
-    logger.info('\tDropout rates:{}'.format(dropout_rates))
-    logger.info('\tEarly stoping:{}'.format(early_stop))
-    logger.info('\tRetrain model:{}'.format(retrain))
-    logger.info('\tWarm up:{}'.format(warm_up))
-    logger.info('\tInitial epoch of warm up:{}'.format(initial_epoch))
+    logger.info('Root path:{}'.format(root_path))
+    logger.info('Station:{}'.format(station))
+    logger.info('Decomposer:{}'.format(decomposer))
+    logger.info('Predict pattern:{}'.format(predict_pattern))
+    logger.info('Lags:{}'.format(lags))
+    logger.info('Model index:{}'.format(model_id))
+    logger.info('Seed:{}'.format(seed))
+    logger.info('Monther wavelet and decomposition level of WA:{}'.format(wavelet_level))
+    logger.info('Number of epochs:{}'.format(n_epochs))
+    logger.info('Batch size:{}'.format(batch_size))
+    logger.info('Learning rate:{}'.format(learn_rate))
+    logger.info('Decay rate of learning rate:{}'.format(decay_rate))
+    logger.info('Number of hidden layers:{}'.format(n_hidden_layers))
+    logger.info('Number of hidden units:{}'.format(hidden_units))
+    logger.info('Dropout rates:{}'.format(dropout_rates))
+    logger.info('Early stoping:{}'.format(early_stop))
+    logger.info('Retrain model:{}'.format(retrain))
+    logger.info('Warm up:{}'.format(warm_up))
+    logger.info('Initial epoch of warm up:{}'.format(initial_epoch))
     if model_id>len(lags):
         raise Exception("The model id exceed the number of sub-signals")
     # Set project parameters
@@ -2273,8 +2237,8 @@ def multi_step_lstm(
 
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    logger.info('\tData path:{}'.format(data_path))
-    logger.info('\tModel path:{}'.format(model_path))
+    logger.info('Data path:{}'.format(data_path))
+    logger.info('Model path:{}'.format(model_path))
     ######################################################
     
     logger.info('Load learning samples...')

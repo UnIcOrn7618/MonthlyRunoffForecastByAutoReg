@@ -3,6 +3,7 @@ import pandas as pd
 import math
 import matplotlib.pyplot as plt
 import deprecated
+import re
 import os
 root_path = os.path.dirname(os.path.abspath('__file__'))
 import sys
@@ -14,6 +15,41 @@ plt.rcParams['font.size']=9
 # plt.rcParams["figure.figsize"] = [7.48, 5.61]
 # plt.rcParams['image.cmap']='plasma'
 # plt.rcParams['axes.linewidth']=2
+
+def plot_cv_error(data_path,labels):
+    logger.info('Plot cross validation MSE...')
+    logger.info('Data path:{}'.format(data_path))
+    logger.info('Labels:{}'.format(labels))
+    if isinstance(data_path,str):
+        data_path = [data_path]
+        labels=[labels]
+    plt.figure(figsize=(7.48,7.48))
+    plt.xlabel('CV')
+    plt.ylabel('MSE')
+    for path,label in zip(data_path,labels):
+        logger.info('Read cv results of {}'.format(path))
+        cv_dict={}
+        for file_ in os.listdir(path):
+            if '.csv' in file_ and 'seed' not in file_ and 'optimized_params' not in file_:
+                logger.info('cv-file:{}'.format(file_))
+                cv = int(re.findall(r"(?<=cv)\d+", file_)[0])
+                logger.info('cv={}'.format(cv))
+                data = pd.read_csv(path+file_)
+                mse = data['dev_mse'][0]
+                logger.info('Development MSE={}'.format(mse))
+                cv_dict[cv]=mse
+        logger.debug('cv dict before sort:{}'.format(cv_dict))
+        cv_dict= dict(sorted(cv_dict.items()))
+        logger.info('Cross validation dict:{}'.format(dict))
+        logger.info('Cross validation folds:{}'.format(cv_dict.keys()))
+        logger.info('Cross validation MSE:{}'.format(cv_dict.values()))
+        plt.plot(list(cv_dict.keys()),list(cv_dict.values()),'o',label=label)
+        plt.legend()
+    plt.tight_layout()
+    plt.show()
+            
+                    
+
 
 def plot_rela_pred(records, predictions, fig_savepath,xlabel='Time(month)',figsize=(7.48, 3),format='PNG',dpi=300):
     """ 
