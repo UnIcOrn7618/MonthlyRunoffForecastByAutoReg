@@ -43,7 +43,7 @@ def plot_cv_error(data_path,labels):
         logger.info('Cross validation dict:{}'.format(dict))
         logger.info('Cross validation folds:{}'.format(cv_dict.keys()))
         logger.info('Cross validation MSE:{}'.format(cv_dict.values()))
-        plt.plot(list(cv_dict.keys()),list(cv_dict.values()),'o',label=label)
+        plt.plot(list(cv_dict.keys()),list(cv_dict.values()),marker='o',label=label)
         plt.legend()
     plt.tight_layout()
     plt.show()
