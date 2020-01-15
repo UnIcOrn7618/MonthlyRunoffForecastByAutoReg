@@ -38,7 +38,7 @@ def get_test_results(df,columns):
 eemd_train = pd.read_csv(root_path+"/Huaxian_eemd/data/EEMD_TRAIN.csv")
 ssa_train = pd.read_csv(root_path+"/Huaxian_ssa/data/SSA_TRAIN.csv")
 vmd_train = pd.read_csv(root_path+"/Huaxian_vmd/data/VMD_TRAIN.csv")
-dwt_train = pd.read_csv(root_path+"/Huaxian_wd/data/db10-lev2/WD_TRAIN.csv")
+dwt_train = pd.read_csv(root_path+"/Huaxian_dwt/data/db10-2/DWT_TRAIN.csv")
 
 c_eemd_hua,t_list_eemd_hua=get_test_results(df=eemd_train,columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8','IMF9'])
 c_ssa_hua,t_list_ssa_hua=get_test_results(df=ssa_train,columns=['Trend','Periodic1','Periodic2','Periodic3','Periodic4','Periodic5','Periodic6','Periodic7','Periodic8','Periodic9','Periodic10','Noise'])

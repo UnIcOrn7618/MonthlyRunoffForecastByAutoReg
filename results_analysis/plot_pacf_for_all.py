@@ -6,7 +6,7 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 graphs_path = root_path+'/results_analysis/graphs/'
 
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from plot_pacfs import plot_pacf,plot_pacfs
 
 if __name__ == "__main__":

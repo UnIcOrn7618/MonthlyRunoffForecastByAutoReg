@@ -9,7 +9,7 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 graphs_path = root_path+'/results_analysis/graphs/'
 print(root_path)
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from results_reader import read_two_stage,read_pure_esvr
 from fit_line import compute_linear_fit,compute_list_linear_fit
 
@@ -29,24 +29,24 @@ h_ssa_records,h_ssa_predictions,h_ssa_r2,h_ssa_nrmse,h_ssa_mae,h_ssa_mape,h_ssa_
 x_ssa_records,x_ssa_predictions,x_ssa_r2,x_ssa_nrmse,x_ssa_mae,x_ssa_mape,x_ssa_ppts,x_ssa_timecost= read_two_stage(station="Xianyang",decomposer="ssa",predict_pattern="one_step_1_month_forecast")
 z_ssa_records,z_ssa_predictions,z_ssa_r2,z_ssa_nrmse,z_ssa_mae,z_ssa_mape,z_ssa_ppts,z_ssa_timecost= read_two_stage(station="Zhangjiashan",decomposer="ssa",predict_pattern="one_step_1_month_forecast")
 
-h_wd_records,h_wd_predictions,h_wd_r2,h_wd_nrmse,h_wd_mae,h_wd_mape,h_wd_ppts,h_wd_timecost= read_two_stage(station="Huaxian",decomposer="wd",predict_pattern="one_step_1_month_forecast")
-x_wd_records,x_wd_predictions,x_wd_r2,x_wd_nrmse,x_wd_mae,x_wd_mape,x_wd_ppts,x_wd_timecost= read_two_stage(station="Xianyang",decomposer="wd",predict_pattern="one_step_1_month_forecast")
-z_wd_records,z_wd_predictions,z_wd_r2,z_wd_nrmse,z_wd_mae,z_wd_mape,z_wd_ppts,z_wd_timecost= read_two_stage(station="Zhangjiashan",decomposer="wd",predict_pattern="one_step_1_month_forecast")
+h_dwt_records,h_dwt_predictions,h_dwt_r2,h_dwt_nrmse,h_dwt_mae,h_dwt_mape,h_dwt_ppts,h_dwt_timecost= read_two_stage(station="Huaxian",decomposer="dwt",predict_pattern="one_step_1_month_forecast")
+x_dwt_records,x_dwt_predictions,x_dwt_r2,x_dwt_nrmse,x_dwt_mae,x_dwt_mape,x_dwt_ppts,x_dwt_timecost= read_two_stage(station="Xianyang",decomposer="dwt",predict_pattern="one_step_1_month_forecast")
+z_dwt_records,z_dwt_predictions,z_dwt_r2,z_dwt_nrmse,z_dwt_mae,z_dwt_mape,z_dwt_ppts,z_dwt_timecost= read_two_stage(station="Zhangjiashan",decomposer="dwt",predict_pattern="one_step_1_month_forecast")
 
 huaxian_eemd = pd.read_csv(root_path+'/Huaxian_eemd/projects/esvr/multi_step_1_month_forecast/esvr_Huaxian_eemd_sum_test_result.csv')
 huaxian_ssa = pd.read_csv(root_path+'/Huaxian_ssa/projects/esvr/multi_step_1_month_forecast/esvr_Huaxian_ssa_sum_test_result.csv')
 huaxian_vmd = pd.read_csv(root_path+'/Huaxian_vmd/projects/esvr/multi_step_1_month_forecast/esvr_Huaxian_vmd_sum_test_result.csv')
-huaxian_wd = pd.read_csv(root_path+'/Huaxian_wd/projects/esvr/db10-lev2/multi_step_1_month_forecast/esvr_Huaxian_wd_sum_test_result.csv')
+huaxian_dwt = pd.read_csv(root_path+'/Huaxian_dwt/projects/esvr/db10-2/multi_step_1_month_forecast/esvr_Huaxian_dwt_sum_test_result.csv')
 
 xianyang_eemd = pd.read_csv(root_path+'/Xianyang_eemd/projects/esvr/multi_step_1_month_forecast/esvr_Xianyang_eemd_sum_test_result.csv')
 xianyang_ssa = pd.read_csv(root_path+'/Xianyang_ssa/projects/esvr/multi_step_1_month_forecast/esvr_Xianyang_ssa_sum_test_result.csv')
 xianyang_vmd = pd.read_csv(root_path+'/Xianyang_vmd/projects/esvr/multi_step_1_month_forecast/esvr_Xianyang_vmd_sum_test_result.csv')
-xianyang_wd = pd.read_csv(root_path+'/Xianyang_wd/projects/esvr/db10-lev2/multi_step_1_month_forecast/esvr_Xianyang_wd_sum_test_result.csv')
+xianyang_dwt = pd.read_csv(root_path+'/Xianyang_dwt/projects/esvr/db10-2/multi_step_1_month_forecast/esvr_Xianyang_dwt_sum_test_result.csv')
 
 zhangjiashan_eemd = pd.read_csv(root_path+'/Zhangjiashan_eemd/projects/esvr/multi_step_1_month_forecast/esvr_Zhangjiashan_eemd_sum_test_result.csv')
 zhangjiashan_ssa = pd.read_csv(root_path+'/Zhangjiashan_ssa/projects/esvr/multi_step_1_month_forecast/esvr_Zhangjiashan_ssa_sum_test_result.csv')
 zhangjiashan_vmd = pd.read_csv(root_path+'/Zhangjiashan_vmd/projects/esvr/multi_step_1_month_forecast/esvr_Zhangjiashan_vmd_sum_test_result.csv')
-zhangjiashan_wd = pd.read_csv(root_path+'/Zhangjiashan_wd/projects/esvr/db10-lev2/multi_step_1_month_forecast/esvr_Zhangjiashan_wd_sum_test_result.csv')
+zhangjiashan_dwt = pd.read_csv(root_path+'/Zhangjiashan_dwt/projects/esvr/db10-2/multi_step_1_month_forecast/esvr_Zhangjiashan_dwt_sum_test_result.csv')
 
 
 ##########################################################################################################
@@ -54,15 +54,15 @@ records_list=[
     [h_eemd_records,huaxian_eemd['orig'].values,],
     [h_ssa_records,huaxian_ssa['orig'].values,],
     [h_vmd_records,huaxian_vmd['orig'].values,],
-    [h_wd_records,huaxian_wd['orig'].values,],
+    [h_dwt_records,huaxian_dwt['orig'].values,],
     [x_eemd_records,xianyang_eemd['orig'].values,],
     [x_ssa_records,xianyang_ssa['orig'].values,],
     [x_vmd_records,xianyang_vmd['orig'].values,],
-    [x_wd_records,xianyang_wd['orig'].values,],
+    [x_dwt_records,xianyang_dwt['orig'].values,],
     [z_eemd_records,zhangjiashan_eemd['orig'].values,],
     [z_ssa_records,zhangjiashan_ssa['orig'].values,],
     [z_vmd_records,zhangjiashan_vmd['orig'].values,],
-    [z_wd_records,zhangjiashan_wd['orig'].values,],
+    [z_dwt_records,zhangjiashan_dwt['orig'].values,],
   
     
 ]
@@ -70,15 +70,15 @@ predictions_list=[
     [h_eemd_predictions,huaxian_eemd['pred'].values,],
     [h_ssa_predictions,huaxian_ssa['pred'].values,],
     [h_vmd_predictions,huaxian_vmd['pred'].values,],
-    [h_wd_predictions,huaxian_wd['pred'].values,],
+    [h_dwt_predictions,huaxian_dwt['pred'].values,],
     [x_eemd_predictions,xianyang_eemd['pred'].values,],
     [x_ssa_predictions,xianyang_ssa['pred'].values,],
     [x_vmd_predictions,xianyang_vmd['pred'].values,],
-    [x_wd_predictions,xianyang_wd['pred'].values,],
+    [x_dwt_predictions,xianyang_dwt['pred'].values,],
     [z_eemd_predictions,zhangjiashan_eemd['pred'].values,],
     [z_ssa_predictions,zhangjiashan_ssa['pred'].values,],
     [z_vmd_predictions,zhangjiashan_vmd['pred'].values,],
-    [z_wd_predictions,zhangjiashan_wd['pred'].values,],
+    [z_dwt_predictions,zhangjiashan_dwt['pred'].values,],
 
 ]
 fig_id=[

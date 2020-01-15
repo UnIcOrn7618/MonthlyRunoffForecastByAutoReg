@@ -5,7 +5,7 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 # root_path = os.path.abspath(os.path.join(root_path,os.path.pardir))
 print("root_path:{}".format(root_path))
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from models import one_step_esvr,one_step_esvr_multi_seed
 
 

@@ -7,7 +7,7 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 # root_path = os.path.abspath(os.path.join(root_path,os.path.pardir))
 graphs_path = root_path+'/results_analysis/graphs/'
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from results_reader import read_two_stage
 
 h_records,h_predictions,h_r2,h_rmse,h_mae,h_mape,h_ppts,h_timecost= read_two_stage(station="Huaxian",decomposer="vmd",predict_pattern="one_step_1_month_forecast")

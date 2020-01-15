@@ -11,24 +11,24 @@ graphs_path = root_path+'/results_analysis/graphs/'
 # two_huaxian_eemd = pd.read_csv(root_path+'/Huaxian_eemd/projects/esvr/one_step_one_month_forecast/Huaxian_eemd_one_step_esvr_forecast.csv')
 # two_huaxian_ssa = pd.read_csv(root_path+'/Huaxian_ssa/projects/esvr/one_step_one_month_forecast/Huaxian_ssa_one_step_esvr_forecast.csv')
 two_huaxian_vmd = pd.read_csv(root_path+'/Huaxian_vmd/projects/esvr/one_step_one_month_forecast/Huaxian_vmd_one_step_esvr_forecast.csv')
-# two_huaxian_wd = pd.read_csv(root_path+'/Huaxian_wd/projects/esvr/db10-lev2/one_step_one_month_forecast/Huaxian_wd_one_step_esvr_forecast.csv')
+# two_huaxian_dwt = pd.read_csv(root_path+'/Huaxian_dwt/projects/esvr/db10-2/one_step_one_month_forecast/Huaxian_dwt_one_step_esvr_forecast.csv')
 # three_huaxian_eemd = pd.read_csv(root_path+'/Huaxian_eemd/projects/esvr/multi_step_one_month_forecast/esvr_Huaxian_eemd_sum_test_result.csv')
 # three_huaxian_ssa = pd.read_csv(root_path+'/Huaxian_ssa/projects/esvr/multi_step_one_month_forecast/esvr_Huaxian_ssa_sum_test_result.csv')
 three_huaxian_vmd = pd.read_csv(root_path+'/Huaxian_vmd/projects/esvr/multi_step_one_month_forecast/esvr_Huaxian_vmd_sum_test_result.csv')
-three_huaxian_wd = pd.read_csv(root_path+'/Huaxian_wd/projects/esvr/db10-lev2/multi_step_one_month_forecast/esvr_Huaxian_wd_sum_test_result.csv')
+three_huaxian_dwt = pd.read_csv(root_path+'/Huaxian_dwt/projects/esvr/db10-2/multi_step_one_month_forecast/esvr_Huaxian_dwt_sum_test_result.csv')
 
 # two_xianyang = pd.read_csv(root_path+'/Xianyang/projects/esvr/Xianyang_esvr.csv')
 # two_xianyang_eemd = pd.read_csv(root_path+'/Xianyang_eemd/projects/esvr/one_step_one_month_forecast/Xianyang_eemd_one_step_esvr_forecast.csv')
 # two_xianyang_ssa = pd.read_csv(root_path+'/Xianyang_ssa/projects/esvr/one_step_one_month_forecast/Xianyang_ssa_one_step_esvr_forecast.csv')
 two_xianyang_vmd = pd.read_csv(root_path+'/Xianyang_vmd/projects/esvr/one_step_one_month_forecast/Xianyang_vmd_one_step_esvr_forecast.csv')
-# two_xianyang_wd = pd.read_csv(root_path+'/Xianyang_wd/projects/esvr/db10-lev2/one_step_one_month_forecast/Xianyang_wd_one_step_esvr_forecast.csv')
+# two_xianyang_dwt = pd.read_csv(root_path+'/Xianyang_dwt/projects/esvr/db10-2/one_step_one_month_forecast/Xianyang_dwt_one_step_esvr_forecast.csv')
 three_xianyang_vmd = pd.read_csv(root_path+'/Xianyang_vmd/projects/esvr/multi_step_one_month_forecast/esvr_Xianyang_vmd_sum_test_result.csv')
 
 # two_zhangjiashan=pd.read_csv(root_path+'/Zhangjiashan/projects/esvr/Zhangjiashan_esvr.csv')
 # two_zhangjiashan_eemd = pd.read_csv(root_path+'/Zhangjiashan_eemd/projects/esvr/one_step_one_month_forecast/Zhangjiashan_eemd_one_step_esvr_forecast.csv')
 # two_zhangjiashan_ssa = pd.read_csv(root_path+'/Zhangjiashan_ssa/projects/esvr/one_step_one_month_forecast/Zhangjiashan_ssa_one_step_esvr_forecast.csv')
 two_zhangjiashan_vmd = pd.read_csv(root_path+'/Zhangjiashan_vmd/projects/esvr/one_step_one_month_forecast/Zhangjiashan_vmd_one_step_esvr_forecast.csv')
-# two_zhangjiashan_wd = pd.read_csv(root_path+'/Zhangjiashan_wd/projects/esvr/db10-lev2/one_step_one_month_forecast/Zhangjiashan_wd_one_step_esvr_forecast.csv')
+# two_zhangjiashan_dwt = pd.read_csv(root_path+'/Zhangjiashan_dwt/projects/esvr/db10-2/one_step_one_month_forecast/Zhangjiashan_dwt_one_step_esvr_forecast.csv')
 three_zhangjiashan_vmd = pd.read_csv(root_path+'/Zhangjiashan_vmd/projects/esvr/multi_step_one_month_forecast/esvr_Zhangjiashan_vmd_sum_test_result.csv')
 
 

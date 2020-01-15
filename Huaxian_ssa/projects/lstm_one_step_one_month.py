@@ -4,7 +4,7 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from models import one_step_lstm
 
 if __name__ == "__main__":

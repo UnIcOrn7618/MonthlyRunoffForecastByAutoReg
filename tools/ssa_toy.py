@@ -2,8 +2,8 @@
 # ms-python.python added
 import os
 try:
-	os.chdir(os.path.join(os.getcwd(), 'tools'))
-	print(os.getcwd())
+	os.chdir(os.path.join(os.getcdwt(), 'tools'))
+	print(os.getcdwt())
 except:
 	pass
 

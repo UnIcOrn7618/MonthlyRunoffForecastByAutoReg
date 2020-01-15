@@ -1,7 +1,7 @@
 import os
 root_path = os.path.dirname(os.path.abspath('__file__'))
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from performance_analysis import pca_performance_ana
 
 if __name__ == "__main__":

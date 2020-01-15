@@ -1,48 +1,19 @@
+
 import os
 root_path = os.path.dirname(os.path.abspath("__file__"))
-from variables import one_step_lags,multi_step_lags
-print("One-Step Lags:{}".format(one_step_lags))
-print("Multi-Step Lags:{}".format(multi_step_lags))
 import sys
-sys.path.append(root_path+'/tools/')
-from samples_generator import gen_one_step_hindcast_samples
-from samples_generator import gen_one_step_forecast_samples
-from samples_generator import gen_multi_step_hindcast_samples
-from samples_generator import gen_multi_step_forecast_samples
-from samples_generator import gen_one_step_forecast_samples_leading_time
-from samples_generator import gen_one_step_forecast_samples_triandev_test
+sys.path.append(root_path)
+from tools.samples_generator import gen_one_step_forecast_samples_triandev_test
+from tools.samples_generator import gen_multi_step_forecast_samples
+from tools.samples_generator import gen_one_step_forecast_samples
+from Huaxian_vmd.projects.variables import variables
 
-# Generate one-step one-month ahead hindcast samples
-# gen_one_step_hindcast_samples(
-#     station='Huaxian',
-#     decomposer="vmd",
-#     lags = one_step_lags,
-#     input_columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
-#     output_column=['ORIG'],
-#     test_len=120,
-#     seed=20190610,
-#     sampling=False,
-#     header=True,
-#     index=False,
-# )
-
-# gen_one_step_forecast_samples_leading_time(
-#         station='Huaxian',
-#         decomposer='vmd',
-#         lags=one_step_lags,
-#         input_columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
-#         output_column=['ORIG'],
-#         start=553,
-#         stop=792,
-#         test_len=120,
-#         leading_time=9,
-#     )
 
 
 gen_one_step_forecast_samples_triandev_test(
         station="Huaxian",
         decomposer="vmd",
-        lags=one_step_lags,
+        lags_dict = variables['lags_dict'],
         input_columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
         output_column=['ORIG'],
         start=673,
@@ -50,47 +21,86 @@ gen_one_step_forecast_samples_triandev_test(
         test_len=120,
     )
 
-# Generate one-step one-month ahead forecast samples
-# gen_one_step_forecast_samples(
-#     station = "Huaxian",
-#     decomposer="vmd",
-#     lags=one_step_lags,
-#     input_columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
-#     output_column=['ORIG'],
-#     start=553,
-#     stop=792,
-#     test_len=120,
-#     seed=20190610,
-#     sampling=False,
-#     header=True,
-#     index=False,
-# )
+gen_one_step_forecast_samples(
+    station = "Huaxian",
+    decomposer="vmd",
+    lags_dict = variables['lags_dict'],
+    input_columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
+    output_column=['ORIG'],
+    start=553,
+    stop=792,
+    test_len=120,
+    mode = 'PACF',
+    lead_time =1,
+)
+
+for lead_time in [3,5,7,9]:
+    gen_one_step_forecast_samples(
+        station = "Huaxian",
+        decomposer="vmd",
+        lags_dict = variables['lags_dict'],
+        input_columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
+        output_column=['ORIG'],
+        start=553,
+        stop=792,
+        test_len=120,
+        mode = 'Pearson',
+        lead_time =lead_time,
+    )
 
 
-# Generate multi-step one-month ahead hindcast samples
-# gen_multi_step_hindcast_samples(
-#     station='Huaxian',
-#     decomposer='vmd',
-#     lags=multi_step_lags,
-#     columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
-#     test_len=120,
-#     sampling=False,
-#     header=True,
-#     index=False, 
-# )
-
-# Generate multi-step one-month ahead forecast samples
-# gen_multi_step_forecast_samples(
-#     station='Huaxian',
-#     decomposer="vmd",
-#     lags=multi_step_lags,
-#     columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
-#     start=553,
-#     stop=792,
-#     test_len=120,
-#     sampling=False,
-#     header=True,
-#     index=False
-# )
+for lead_time in [3,5,7,9]:
+    gen_one_step_forecast_samples(
+        station = "Huaxian",
+        decomposer="vmd",
+        lags_dict = variables['lags_dict'],
+        input_columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
+        output_column=['ORIG'],
+        start=553,
+        stop=792,
+        test_len=120,
+        mode = 'PACF',
+        lead_time =lead_time,
+    )
 
 
+gen_multi_step_forecast_samples(
+    station='Huaxian',
+    decomposer="vmd",
+    lags_dict = variables['lags_dict'],
+    columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
+    start=553,
+    stop=792,
+    test_len=120,
+)
+
+
+gen_one_step_forecast_samples(
+    station = "Huaxian",
+    decomposer="vmd",
+    lags_dict = variables['lags_dict'],
+    input_columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
+    output_column=['ORIG'],
+    start=553,
+    stop=792,
+    test_len=120,
+    mode = 'PACF',
+    lead_time =1,
+    n_components='mle',
+)
+
+num_in_one = sum(variables['lags_dict'].values())
+for n_components in range(num_in_one-16,num_in_one+1):
+    gen_one_step_forecast_samples(
+        station = "Huaxian",
+        decomposer="vmd",
+        lags_dict = variables['lags_dict'],
+        input_columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
+        output_column=['ORIG'],
+        start=553,
+        stop=792,
+        test_len=120,
+        mode = 'PACF',
+        lead_time =1,
+        n_components=n_components,
+    )

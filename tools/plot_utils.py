@@ -2,9 +2,13 @@ import numpy as np
 import pandas as pd
 import math
 import matplotlib.pyplot as plt
-from skopt_plots import plot_convergence,plot_objective,plot_evaluations
 import deprecated
-
+import os
+root_path = os.path.dirname(os.path.abspath('__file__'))
+import sys
+sys.path.append(root_path)
+from tools.skopt_plots import plot_convergence,plot_objective,plot_evaluations
+from config.globalLog import logger
 # plt.rcParams['figure.figsize']=(10,8)
 plt.rcParams['font.size']=9
 # plt.rcParams["figure.figsize"] = [7.48, 5.61]
@@ -19,24 +23,31 @@ def plot_rela_pred(records, predictions, fig_savepath,xlabel='Time(month)',figsi
         predictions: the predictions obtained by model
         fig_savepath: the path where the plot figure will be saved.
     """
+    logger.info('Plot predictions and correlations...')
+    if isinstance(records,pd.DataFrame) or isinstance(records,pd.Series):
+        records = records.values
+    elif isinstance(predictions,pd.DataFrame) or isinstance(predictions,pd.Series):
+        predictions = predictions.values
     length = records.size
     t = np.linspace(start=1, stop=length, num=length)
     plt.figure(figsize=figsize)
-    plt.subplot(1, 2, 1)
-    plt.xticks()
-    plt.yticks()
-    plt.xlabel(xlabel, )
-    plt.ylabel("flow(" + r"$m^3$" + "/s)", )
-    plt.plot(t, records, '-', color='blue', label='records',linewidth=1.0)
-    plt.plot(t, predictions, '--', color='red', label='predictions',linewidth=1.0)
-    plt.legend(
+    ax1 = plt.subplot2grid((1,5), (0,0), colspan=3)
+    ax2 = plt.subplot2grid((1,5), (0,3),colspan=2,aspect='equal')
+    
+    # ax1.set_xticks([])
+    # ax1.set_yticks([])
+    ax1.set_xlabel(xlabel, )
+    ax1.set_ylabel(r"Runoff($10^8m^3$)", )
+    ax1.plot(t, records, '-', color='blue', label='Records',linewidth=1.0)
+    ax1.plot(t, predictions, '--', color='red', label='Predictions',linewidth=1.0)
+    ax1.legend(
         # loc='upper left',
         loc=0,
         # bbox_to_anchor=(0.005,1.2),
         shadow=False,
         frameon=False,
         )
-    plt.subplot(1, 2, 2)
+    
     pred_min =predictions.min()
     pred_max = predictions.max()
     record_min = records.min()
@@ -49,24 +60,25 @@ def plot_rela_pred(records, predictions, fig_savepath,xlabel='Time(month)',figsi
         xymax = pred_max
     else:
         xymax=record_max
+    
     xx = np.arange(start=xymin,stop=xymax+1,step=1.0) 
     coeff = np.polyfit(predictions, records, 1)
     linear_fit = coeff[0] * xx + coeff[1]
     # print('a:{}'.format(coeff[0]))
     # print('b:{}'.format(coeff[1]))
-    plt.xticks()
-    plt.yticks()
-    plt.xlabel('predictions(' + r'$m^3$' + '/s)', )
-    plt.ylabel('records(' + r'$m^3$' + '/s)', )
-    # plt.plot(predictions, records, 'o', color='blue', label='',markersize=6.5)
-    plt.plot(predictions, records,'o', markerfacecolor='w',markeredgecolor='blue',markersize=6.5)
-    # plt.plot(predictions, linear_fit, '--', color='red', label='Linear fit',linewidth=1.0)
-    # plt.plot(predictions, ideal_fit, '-', color='black', label='Ideal fit',linewidth=1.0)
-    plt.plot(xx, linear_fit, '--', color='red', label='Linear fit',linewidth=1.0)
-    plt.plot([xymin,xymax], [xymin,xymax], '-', color='black', label='Ideal fit',linewidth=1.0)
-    plt.xlim([xymin,xymax])
-    plt.ylim([xymin,xymax])
-    plt.legend(
+    # ax2.set_xticks()
+    # ax2.set_yticks()
+    ax2.set_xlabel(r'Predictions($10^8m^3$)', )
+    ax2.set_ylabel(r'Records($10^8m^3$)', )
+    # ax2.plot(predictions, records, 'o', color='blue', label='',markersize=6.5)
+    ax2.plot(predictions, records,'o', markerfacecolor='w',markeredgecolor='blue',markersize=6.5)
+    # ax2.plot(predictions, linear_fit, '--', color='red', label='Linear fit',linewidth=1.0)
+    # ax2.plot(predictions, ideal_fit, '-', color='black', label='Ideal fit',linewidth=1.0)
+    ax2.plot(xx, linear_fit, '--', color='red', label='Linear fit',linewidth=1.0)
+    ax2.plot([xymin,xymax], [xymin,xymax], '-', color='black', label='Ideal fit',linewidth=1.0)
+    ax2.set_xlim([xymin,xymax])
+    ax2.set_ylim([xymin,xymax])
+    ax2.legend(
         # loc='upper left',
         loc=0,
         # bbox_to_anchor=(0.05,1),
@@ -222,7 +234,7 @@ def plot_subsignals_pred(predictions,records,test_len,full_len,fig_savepath,subs
     if subsignals_name==None:
         subsignals_name=[]
         for k in range(1,predictions.shape[1]+1):
-            subsignals_name.append('IMF'+str(k))
+            subsignals_name.append('S'+str(k))
 
     plt.figure(figsize=figsize)
     t=range(full_len-test_len+1,full_len+1)
@@ -233,7 +245,7 @@ def plot_subsignals_pred(predictions,records,test_len,full_len,fig_savepath,subs
         plt.yticks()
         if i==predictions.shape[1] or i==predictions.shape[1]-1:
             plt.xlabel(xlabel, )
-        plt.ylabel("flow(" + r"$m^3$" + "/s)", )
+        plt.ylabel(r"Runoff($10^8m^3$)", )
         if i==1:
             plt.plot(t,records.iloc[:,i-1], '-', color='blue', label='records',linewidth=1.0)
             plt.plot(t,predictions.iloc[:,i-1], '--', color='red', label='',linewidth=1.0)

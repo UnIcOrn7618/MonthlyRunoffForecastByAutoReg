@@ -81,11 +81,11 @@ plt.tight_layout()
 # plt.savefig(graphs_path+'/vmd_aliasing.eps',format='EPS',dpi=2000)
 # plt.savefig(graphs_path+'/vmd_aliasing.tif',format='TIFF',dpi=600)
 
-huaxian_wd = pd.read_csv(root_path+"/Huaxian_wd/data/db10-lev2/WD_TRAIN.csv")
-T=huaxian_wd.shape[0]
+huaxian_dwt = pd.read_csv(root_path+"/Huaxian_dwt/data/db10-2/DWT_TRAIN.csv")
+T=huaxian_dwt.shape[0]
 t = np.arange(start=1,stop=T+1,step=1,dtype=np.float)/T
 freqs = t-0.5-1/T
-L = huaxian_wd.shape[1]-1
+L = huaxian_dwt.shape[1]-1
 columns=['D1','D2','A2',]
 plt.figure(figsize=(7.48,7.48))
 for i in range(1,L+1):
@@ -93,10 +93,10 @@ for i in range(1,L+1):
     if i==L:
         plt.xlabel('Time(month)')
     plt.ylabel(columns[i-1])
-    plt.plot(huaxian_wd[columns[i-1]],color='b',label='',linewidth=0.8)
+    plt.plot(huaxian_dwt[columns[i-1]],color='b',label='',linewidth=0.8)
 
     plt.subplot(L,2,2*i)
-    plt.plot(freqs,abs(fft(huaxian_wd[columns[i-1]])),c='b',lw=0.8)
+    plt.plot(freqs,abs(fft(huaxian_dwt[columns[i-1]])),c='b',lw=0.8)
     if i==L:
         plt.xlabel('Frequence(1/month)')
     plt.ylabel('Amplitude')
@@ -141,7 +141,7 @@ plt.ylabel(r"P1\|f\|")
 plt.plot(f_v,P1_v,c='b')
 
 plt.subplot(2,2,4)
-Y_w = fft(huaxian_wd['D1'])
+Y_w = fft(huaxian_dwt['D1'])
 P2_w=np.abs(Y_w/L)
 P1_w=P2_w[1:int(L/2)+1]
 P1_w[1:len(P1_w)-1]=2*P1_w[1:len(P1_w)-1]
@@ -174,7 +174,7 @@ plt.subplot(2,2,4)
 plt.text(-0.53,220,'(d)',fontsize=7)
 plt.xlabel('Frequence(1/month)')
 # plt.ylabel('Amplitude')
-plt.plot(freqs,abs(fft(huaxian_wd['D1'])),c='b',lw=0.8)
+plt.plot(freqs,abs(fft(huaxian_dwt['D1'])),c='b',lw=0.8)
 plt.tight_layout()
 plt.savefig(graphs_path+"frequency_spectrum.eps",format="EPS",dpi=2000)
 plt.savefig(graphs_path+"frequency_spectrum.tif",format="TIFF",dpi=1200)

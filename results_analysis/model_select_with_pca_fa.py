@@ -24,7 +24,7 @@ graphs_path = root_path+'\\results_analysis\\graphs\\'
 
 
 
-def model_select_pca(station,decomposer,predict_pattern,ax=None,wavelet_level='db10-lev2'):
+def model_select_pca(station,decomposer,predict_pattern,ax=None,wavelet_level='db10-2'):
     # Set project parameters
     STATION = station
     DECOMPOSER = decomposer
@@ -32,7 +32,7 @@ def model_select_pca(station,decomposer,predict_pattern,ax=None,wavelet_level='d
     SIGNALS = STATION+'_'+DECOMPOSER
     # Set parameters for PCA
     # load one-step one-month forecast or hindcast samples and the normalization indicators
-    if decomposer=='wd':
+    if decomposer=='dwt':
         train = pd.read_csv(root_path+'/'+SIGNALS+'/data/'+wavelet_level+'/'+PREDICT_PATTERN+'/minmax_unsample_train.csv')
         dev = pd.read_csv(root_path+'/'+SIGNALS+'/data/'+wavelet_level+'/'+PREDICT_PATTERN+'/minmax_unsample_dev.csv')
         test = pd.read_csv(root_path+'/'+SIGNALS+'/data/'+wavelet_level+'/'+PREDICT_PATTERN+'/minmax_unsample_test.csv')
@@ -157,15 +157,15 @@ if __name__ == "__main__":
     model_select_pca(station='Huaxian',decomposer='eemd',predict_pattern='one_step_1_month_forecast',ax=ax1)
     model_select_pca(station='Huaxian',decomposer='ssa',predict_pattern='one_step_1_month_forecast',ax=ax2)
     model_select_pca(station='Huaxian',decomposer='vmd',predict_pattern='one_step_1_month_forecast',ax=ax3)
-    model_select_pca(station='Huaxian',decomposer='wd',predict_pattern='one_step_1_month_forecast',ax=ax4)
+    model_select_pca(station='Huaxian',decomposer='dwt',predict_pattern='one_step_1_month_forecast',ax=ax4)
     model_select_pca(station='Xianyang',decomposer='eemd',predict_pattern='one_step_1_month_forecast',ax=ax5)
     model_select_pca(station='Xianyang',decomposer='ssa',predict_pattern='one_step_1_month_forecast',ax=ax6)
     model_select_pca(station='Xianyang',decomposer='vmd',predict_pattern='one_step_1_month_forecast',ax=ax7)
-    model_select_pca(station='Xianyang',decomposer='wd',predict_pattern='one_step_1_month_forecast',ax=ax8)
+    model_select_pca(station='Xianyang',decomposer='dwt',predict_pattern='one_step_1_month_forecast',ax=ax8)
     model_select_pca(station='Zhangjiashan',decomposer='eemd',predict_pattern='one_step_1_month_forecast',ax=ax9)
     model_select_pca(station='Zhangjiashan',decomposer='ssa',predict_pattern='one_step_1_month_forecast',ax=ax10)
     model_select_pca(station='Zhangjiashan',decomposer='vmd',predict_pattern='one_step_1_month_forecast',ax=ax11)
-    model_select_pca(station='Zhangjiashan',decomposer='wd',predict_pattern='one_step_1_month_forecast',ax=ax12)
+    model_select_pca(station='Zhangjiashan',decomposer='dwt',predict_pattern='one_step_1_month_forecast',ax=ax12)
     plt.savefig(graphs_path+"PCA_FA_analysis.eps",format="EPS",dpi=2000)
     plt.savefig(graphs_path+"PCA_FA_analysis.tif",format="TIFF",dpi=1200)
     plt.show()

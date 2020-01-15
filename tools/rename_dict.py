@@ -30,6 +30,32 @@ if __name__ == "__main__":
     #         spliter="_multi_step_esvr_",
     #         replace="_esvr_multi_step_1_month_",
     #     )
+    dir_path = root_path+'/Huaxian_eemd/projects/esvr/'
+    for x in os.listdir(dir_path):
+        if x.__contains__('pca') and 'ahead' not in x and 'metrics' not in x:
+            print(x)
+            alist = x.split('_')
+            new_name = alist[0]+'_'+alist[1]+'_'+alist[2]+'_ahead_'+alist[4]+'_pacf_'+alist[6]+alist[7]
+            print(new_name)
+            os.rename(dir_path+"/"+x,dir_path+"/"+new_name)
+        elif x.__contains__('multi_step_1_month'):
+            print(x)
+            alist = x.split('month')
+            new_name = alist[0]+'ahead'+alist[1]+'_pacf'
+            print(new_name)
+            os.rename(dir_path+"/"+x,dir_path+"/"+new_name)
+        elif x.__contains__('one_step') and x.__contains__('new'):
+            print(x)
+            alist = x.split('_')
+            new_name = alist[0]+'_'+alist[1]+'_'+alist[2]+'_ahead_'+alist[4]+'_pacf'
+            print(new_name)
+            os.rename(dir_path+"/"+x,dir_path+"/"+new_name)
+        # elif x.__contains__('one_step') and 'pca' not in x:
+        #     print(x)
+        #     alist = x.split('month')
+        #     new_name = alist[0]+'ahead'+alist[1]+'_pacf'
+        #     print(new_name)
+        #     os.rename(dir_path+"/"+x,dir_path+"/"+new_name)
+        
 
-    files=os.listdir(root_path)
-    print(len(files))
+        

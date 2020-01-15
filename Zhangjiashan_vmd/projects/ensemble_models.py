@@ -5,7 +5,7 @@ import os
 root_path = os.path.dirname(os.path.abspath('__file__')) 
 
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from ensembler import ensemble
 
 # Set the project parameters
@@ -20,7 +20,7 @@ ensemble(
     original_series=ORIGINAL,
     station=STATION,
     decomposer=DECOMPOSER,
-    multi_step_lags=multi_step_lags,
+    multi_step_llags_dict = variables['lags_dict'],
     predictor=PREDICTOR,
     predict_pattern=PREDICT_PATTERN,
     test_len=test_len,

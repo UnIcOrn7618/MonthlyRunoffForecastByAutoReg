@@ -6,7 +6,7 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 print("root_path:{}".format(root_path))
 from variables import multi_step_lags
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from models import multi_step_esvr
 
 
@@ -17,7 +17,7 @@ if __name__ == '__main__':
             station='Huaxian',
             decomposer='eemd',
             predict_pattern='multi_step_1_month_forecast',
-            lags=multi_step_lags,
+            llags_dict = variables['lags_dict'],
             model_id=i,#1:9
             n_calls=100,
         )

@@ -9,7 +9,7 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 graphs_path = root_path+'/results_analysis/graphs/'
 results_path = root_path+'/results_analysis/results/'
 print("root path:{}".format(root_path))
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from results_reader import read_two_stage, read_pure_esvr
 
 h_records, h_predictions, h_r2, h_nrmse, h_mae, h_mape, h_ppts, h_timecost = read_pure_esvr(
@@ -40,67 +40,67 @@ x_ssa_records, x_ssa_predictions, x_ssa_r2, x_ssa_nrmse, x_ssa_mae, x_ssa_mape, 
 z_ssa_records, z_ssa_predictions, z_ssa_r2, z_ssa_nrmse, z_ssa_mae, z_ssa_mape, z_ssa_ppts, z_ssa_timecost = read_two_stage(
     station="Zhangjiashan", decomposer="ssa", predict_pattern="one_step_1_month_forecast")
 
-h_wd_records, h_wd_predictions, h_wd_r2, h_wd_nrmse, h_wd_mae, h_wd_mape, h_wd_ppts, h_wd_timecost = read_two_stage(
-    station="Huaxian", decomposer="wd", predict_pattern="one_step_1_month_forecast")
-x_wd_records, x_wd_predictions, x_wd_r2, x_wd_nrmse, x_wd_mae, x_wd_mape, x_wd_ppts, x_wd_timecost = read_two_stage(
-    station="Xianyang", decomposer="wd", predict_pattern="one_step_1_month_forecast")
-z_wd_records, z_wd_predictions, z_wd_r2, z_wd_nrmse, z_wd_mae, z_wd_mape, z_wd_ppts, z_wd_timecost = read_two_stage(
-    station="Zhangjiashan", decomposer="wd", predict_pattern="one_step_1_month_forecast")
+h_dwt_records, h_dwt_predictions, h_dwt_r2, h_dwt_nrmse, h_dwt_mae, h_dwt_mape, h_dwt_ppts, h_dwt_timecost = read_two_stage(
+    station="Huaxian", decomposer="dwt", predict_pattern="one_step_1_month_forecast")
+x_dwt_records, x_dwt_predictions, x_dwt_r2, x_dwt_nrmse, x_dwt_mae, x_dwt_mape, x_dwt_ppts, x_dwt_timecost = read_two_stage(
+    station="Xianyang", decomposer="dwt", predict_pattern="one_step_1_month_forecast")
+z_dwt_records, z_dwt_predictions, z_dwt_r2, z_dwt_nrmse, z_dwt_mae, z_dwt_mape, z_dwt_ppts, z_dwt_timecost = read_two_stage(
+    station="Zhangjiashan", decomposer="dwt", predict_pattern="one_step_1_month_forecast")
 
 index = [
-    "Huaxian", "Huaxian-vmd", "Huaxian-eemd", "Huaxian-ssa", "Huaxian-wd",
-    "Xianyang", "Xianyang-vmd", "Xianyang-eemd", "Xianyang-ssa", "Xianyang-wd",
-    "Zhangjiashan", "Zhangjiashan-vmd", "Zhangjiashan-eemd", "Zhangjiashan-ssa", "Zhangjiashan-wd"]
+    "Huaxian", "Huaxian-vmd", "Huaxian-eemd", "Huaxian-ssa", "Huaxian-dwt",
+    "Xianyang", "Xianyang-vmd", "Xianyang-eemd", "Xianyang-ssa", "Xianyang-dwt",
+    "Zhangjiashan", "Zhangjiashan-vmd", "Zhangjiashan-eemd", "Zhangjiashan-ssa", "Zhangjiashan-dwt"]
 metrics_dict = {
-    "r2": [h_r2, h_vmd_r2, h_eemd_r2, h_ssa_r2, h_wd_r2,
-           x_r2, x_vmd_r2, x_eemd_r2, x_ssa_r2, x_wd_r2,
-           z_r2, z_vmd_r2, z_eemd_r2, z_ssa_r2, z_wd_r2, ],
-    "rmse": [h_nrmse, h_vmd_nrmse, h_eemd_nrmse, h_ssa_nrmse, h_wd_nrmse,
-             x_nrmse, x_vmd_nrmse, x_eemd_nrmse, x_ssa_nrmse, x_wd_nrmse,
-             z_nrmse, z_vmd_nrmse, z_eemd_nrmse, z_ssa_nrmse, z_wd_nrmse, ],
-    "mae": [h_mae, h_vmd_mae, h_eemd_mae, h_ssa_mae, h_wd_mae,
-            x_mae, x_vmd_mae, x_eemd_mae, x_ssa_mae, x_wd_mae,
-            z_mae, z_vmd_mae, z_eemd_mae, z_ssa_mae, z_wd_mae, ],
-    "mape": [h_mape, h_vmd_mape, h_eemd_mape, h_ssa_mape, h_wd_mape,
-             x_mape, x_vmd_mape, x_eemd_mape, x_ssa_mape, x_wd_mape,
-             z_mape, z_vmd_mape, z_eemd_mape, z_ssa_mape, z_wd_mape, ],
-    "ppts": [h_ppts, h_vmd_ppts, h_eemd_ppts, h_ssa_ppts, h_wd_ppts,
-             x_ppts, x_vmd_ppts, x_eemd_ppts, x_ssa_ppts, x_wd_ppts,
-             z_ppts, z_vmd_ppts, z_eemd_ppts, z_ssa_ppts, z_wd_ppts, ],
-    "time_cost": [h_timecost, h_vmd_timecost, h_eemd_timecost, h_ssa_timecost, h_wd_timecost,
-                  x_timecost, x_vmd_timecost, x_eemd_timecost, x_ssa_timecost, x_wd_timecost,
-                  z_timecost, z_vmd_timecost, z_eemd_timecost, z_ssa_timecost, z_wd_timecost, ],
+    "r2": [h_r2, h_vmd_r2, h_eemd_r2, h_ssa_r2, h_dwt_r2,
+           x_r2, x_vmd_r2, x_eemd_r2, x_ssa_r2, x_dwt_r2,
+           z_r2, z_vmd_r2, z_eemd_r2, z_ssa_r2, z_dwt_r2, ],
+    "rmse": [h_nrmse, h_vmd_nrmse, h_eemd_nrmse, h_ssa_nrmse, h_dwt_nrmse,
+             x_nrmse, x_vmd_nrmse, x_eemd_nrmse, x_ssa_nrmse, x_dwt_nrmse,
+             z_nrmse, z_vmd_nrmse, z_eemd_nrmse, z_ssa_nrmse, z_dwt_nrmse, ],
+    "mae": [h_mae, h_vmd_mae, h_eemd_mae, h_ssa_mae, h_dwt_mae,
+            x_mae, x_vmd_mae, x_eemd_mae, x_ssa_mae, x_dwt_mae,
+            z_mae, z_vmd_mae, z_eemd_mae, z_ssa_mae, z_dwt_mae, ],
+    "mape": [h_mape, h_vmd_mape, h_eemd_mape, h_ssa_mape, h_dwt_mape,
+             x_mape, x_vmd_mape, x_eemd_mape, x_ssa_mape, x_dwt_mape,
+             z_mape, z_vmd_mape, z_eemd_mape, z_ssa_mape, z_dwt_mape, ],
+    "ppts": [h_ppts, h_vmd_ppts, h_eemd_ppts, h_ssa_ppts, h_dwt_ppts,
+             x_ppts, x_vmd_ppts, x_eemd_ppts, x_ssa_ppts, x_dwt_ppts,
+             z_ppts, z_vmd_ppts, z_eemd_ppts, z_ssa_ppts, z_dwt_ppts, ],
+    "time_cost": [h_timecost, h_vmd_timecost, h_eemd_timecost, h_ssa_timecost, h_dwt_timecost,
+                  x_timecost, x_vmd_timecost, x_eemd_timecost, x_ssa_timecost, x_dwt_timecost,
+                  z_timecost, z_vmd_timecost, z_eemd_timecost, z_ssa_timecost, z_dwt_timecost, ],
 }
 
 metrics_df = pd.DataFrame(metrics_dict, index=index)
 print(metrics_df)
 metrics_df.to_csv(results_path+"two_stage_decomposer_esvr_metrics.csv")
 
-huaxian_r2 = [h_r2, h_eemd_r2, h_ssa_r2, h_ssa_r2, h_wd_r2, ]
-huaxian_nrmse = [h_nrmse, h_eemd_nrmse, h_ssa_nrmse, h_vmd_nrmse, h_wd_nrmse, ]
-huaxian_mae = [h_mae, h_eemd_mae, h_ssa_mae, h_vmd_mae, h_wd_mae, ]
-huaxian_mape = [h_mape, h_eemd_mape, h_ssa_mape, h_vmd_mape, h_wd_mape, ]
-huaxian_ppts = [h_ppts, h_eemd_ppts, h_ssa_ppts, h_vmd_ppts, h_wd_ppts, ]
+huaxian_r2 = [h_r2, h_eemd_r2, h_ssa_r2, h_ssa_r2, h_dwt_r2, ]
+huaxian_nrmse = [h_nrmse, h_eemd_nrmse, h_ssa_nrmse, h_vmd_nrmse, h_dwt_nrmse, ]
+huaxian_mae = [h_mae, h_eemd_mae, h_ssa_mae, h_vmd_mae, h_dwt_mae, ]
+huaxian_mape = [h_mape, h_eemd_mape, h_ssa_mape, h_vmd_mape, h_dwt_mape, ]
+huaxian_ppts = [h_ppts, h_eemd_ppts, h_ssa_ppts, h_vmd_ppts, h_dwt_ppts, ]
 huaxian_time = [h_timecost, h_eemd_timecost,
-                h_ssa_timecost, h_vmd_timecost, h_wd_timecost, ]
+                h_ssa_timecost, h_vmd_timecost, h_dwt_timecost, ]
 
-xianyang_r2 = [x_r2, x_eemd_r2, x_ssa_r2, x_vmd_r2, x_wd_r2, ]
+xianyang_r2 = [x_r2, x_eemd_r2, x_ssa_r2, x_vmd_r2, x_dwt_r2, ]
 xianyang_nrmse = [x_nrmse, x_eemd_nrmse,
-                  x_ssa_nrmse, x_vmd_nrmse, x_wd_nrmse, ]
-xianyang_mae = [x_mae, x_eemd_mae, x_ssa_mae, x_vmd_mae, x_wd_mae, ]
-xianyang_mape = [x_mape, x_eemd_mape, x_ssa_mape, x_vmd_mape, x_wd_mape, ]
-xianyang_ppts = [x_ppts, x_eemd_ppts, x_ssa_ppts, x_vmd_ppts, x_wd_ppts, ]
+                  x_ssa_nrmse, x_vmd_nrmse, x_dwt_nrmse, ]
+xianyang_mae = [x_mae, x_eemd_mae, x_ssa_mae, x_vmd_mae, x_dwt_mae, ]
+xianyang_mape = [x_mape, x_eemd_mape, x_ssa_mape, x_vmd_mape, x_dwt_mape, ]
+xianyang_ppts = [x_ppts, x_eemd_ppts, x_ssa_ppts, x_vmd_ppts, x_dwt_ppts, ]
 xianyang_time = [x_timecost, x_eemd_timecost,
-                 x_ssa_timecost, x_vmd_timecost, x_wd_timecost, ]
+                 x_ssa_timecost, x_vmd_timecost, x_dwt_timecost, ]
 
-zhangjiashan_r2 = [z_r2, z_eemd_r2, z_ssa_r2, z_vmd_r2, z_wd_r2, ]
+zhangjiashan_r2 = [z_r2, z_eemd_r2, z_ssa_r2, z_vmd_r2, z_dwt_r2, ]
 zhangjiashan_nrmse = [z_nrmse, z_eemd_nrmse,
-                      z_ssa_nrmse, z_vmd_nrmse, z_wd_nrmse, ]
-zhangjiashan_mae = [z_mae, z_eemd_mae, z_ssa_mae, z_vmd_mae, z_wd_mae, ]
-zhangjiashan_mape = [z_mape, z_eemd_mape, z_ssa_mape, z_vmd_mape, z_wd_mape, ]
-zhangjiashan_ppts = [z_ppts, z_eemd_ppts, z_ssa_ppts, z_vmd_ppts, z_wd_ppts, ]
+                      z_ssa_nrmse, z_vmd_nrmse, z_dwt_nrmse, ]
+zhangjiashan_mae = [z_mae, z_eemd_mae, z_ssa_mae, z_vmd_mae, z_dwt_mae, ]
+zhangjiashan_mape = [z_mape, z_eemd_mape, z_ssa_mape, z_vmd_mape, z_dwt_mape, ]
+zhangjiashan_ppts = [z_ppts, z_eemd_ppts, z_ssa_ppts, z_vmd_ppts, z_dwt_ppts, ]
 zhangjiashan_time = [z_timecost, z_eemd_timecost,
-                     z_ssa_timecost, z_vmd_timecost, z_wd_timecost, ]
+                     z_ssa_timecost, z_vmd_timecost, z_dwt_timecost, ]
 
 
 def autolabel(rects, ax):
@@ -245,7 +245,7 @@ nse_data = [
     [h_eemd_r2, x_eemd_r2, z_eemd_r2],
     [h_ssa_r2, x_ssa_r2, z_ssa_r2],
     [h_vmd_r2, x_vmd_r2, z_vmd_r2],
-    [h_wd_r2, x_wd_r2, z_wd_r2],
+    [h_dwt_r2, x_dwt_r2, z_dwt_r2],
 ]
 
 mean_nse = [
@@ -254,7 +254,7 @@ mean_nse = [
     len([h_eemd_r2, x_eemd_r2, z_eemd_r2]),
     sum([h_ssa_r2, x_ssa_r2, z_ssa_r2])/len([h_ssa_r2, x_ssa_r2, z_ssa_r2]),
     sum([h_vmd_r2, x_vmd_r2, z_vmd_r2])/len([h_vmd_r2, x_vmd_r2, z_vmd_r2]),
-    sum([h_wd_r2, x_wd_r2, z_wd_r2])/len([h_wd_r2, x_wd_r2, z_wd_r2]),
+    sum([h_dwt_r2, x_dwt_r2, z_dwt_r2])/len([h_dwt_r2, x_dwt_r2, z_dwt_r2]),
 ]
 
 for i in range(1, len(mean_nse)):
@@ -266,7 +266,7 @@ nrmse_data = [
     [h_eemd_nrmse, x_eemd_nrmse, z_eemd_nrmse],
     [h_ssa_nrmse, x_ssa_nrmse, z_ssa_nrmse],
     [h_vmd_nrmse, x_vmd_nrmse, z_vmd_nrmse],
-    [h_wd_nrmse, x_wd_nrmse, z_wd_nrmse],
+    [h_dwt_nrmse, x_dwt_nrmse, z_dwt_nrmse],
 ]
 
 mean_nrmse = [
@@ -277,8 +277,8 @@ mean_nrmse = [
     len([h_ssa_nrmse, x_ssa_nrmse, z_ssa_nrmse]),
     sum([h_vmd_nrmse, x_vmd_nrmse, z_vmd_nrmse]) /
     len([h_vmd_nrmse, x_vmd_nrmse, z_vmd_nrmse]),
-    sum([h_wd_nrmse, x_wd_nrmse, z_wd_nrmse]) /
-    len([h_wd_nrmse, x_wd_nrmse, z_wd_nrmse]),
+    sum([h_dwt_nrmse, x_dwt_nrmse, z_dwt_nrmse]) /
+    len([h_dwt_nrmse, x_dwt_nrmse, z_dwt_nrmse]),
 ]
 
 for i in range(1, len(mean_nrmse)):
@@ -290,7 +290,7 @@ ppts_data = [
     [h_eemd_ppts, x_eemd_ppts, z_eemd_ppts],
     [h_ssa_ppts, x_ssa_ppts, z_ssa_ppts],
     [h_vmd_ppts, x_vmd_ppts, z_vmd_ppts],
-    [h_wd_ppts, x_wd_ppts, z_wd_ppts],
+    [h_dwt_ppts, x_dwt_ppts, z_dwt_ppts],
 ]
 
 mean_ppts=[
@@ -298,7 +298,7 @@ mean_ppts=[
     sum([h_eemd_ppts, x_eemd_ppts, z_eemd_ppts])/len([h_eemd_ppts, x_eemd_ppts, z_eemd_ppts]),
     sum([h_ssa_ppts, x_ssa_ppts, z_ssa_ppts])/len([h_ssa_ppts, x_ssa_ppts, z_ssa_ppts]),
     sum([h_vmd_ppts, x_vmd_ppts, z_vmd_ppts])/len([h_vmd_ppts, x_vmd_ppts, z_vmd_ppts]),
-    sum([h_wd_ppts, x_wd_ppts, z_wd_ppts])/len([h_wd_ppts, x_wd_ppts, z_wd_ppts]),
+    sum([h_dwt_ppts, x_dwt_ppts, z_dwt_ppts])/len([h_dwt_ppts, x_dwt_ppts, z_dwt_ppts]),
 ]
 
 for i in range(1, len(mean_ppts)):
@@ -310,7 +310,7 @@ timecost_data = [
     [h_eemd_timecost, x_eemd_timecost, z_eemd_timecost],
     [h_ssa_timecost, x_ssa_timecost, z_ssa_timecost],
     [h_vmd_timecost, x_vmd_timecost, z_vmd_timecost],
-    [h_wd_timecost, x_wd_timecost, z_wd_timecost],
+    [h_dwt_timecost, x_dwt_timecost, z_dwt_timecost],
 ]
 all_datas = [
     nse_data, nrmse_data, ppts_data, timecost_data

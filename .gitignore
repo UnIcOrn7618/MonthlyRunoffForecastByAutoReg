@@ -1,7 +1,12 @@
+# my configuration
 .idea/
 .vscode/
 ideas.md
 project.info
+callrank_log
+
+# graphs, results and other data
+data
 graphs
 techflow_plot
 submission
@@ -10,7 +15,22 @@ graph
 results
 __pycache__
 *.asv
+*.fig
 [A-Z]_TRAINDEV.csv
 
 ShiquanRunoff1956-2014.xlsx
 YangXianRunoff1967-2014.xlsx
+
+# python
+.ipynb_checkpoints
+date_tool.py
+test.py
+**/*_bak.py
+**/*_back_up.py
+**/*_back.py
+test.py
+tempCodeRunnerFile.py
+
+#R
+test.r
+tempCodeRunnerFile.r

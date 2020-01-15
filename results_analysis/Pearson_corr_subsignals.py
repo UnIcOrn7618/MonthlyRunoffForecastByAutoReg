@@ -16,7 +16,7 @@ plt.rcParams['image.cmap']='plasma'
 vmd_train = pd.read_csv(root_path+"/Huaxian_vmd/data/VMD_TRAIN.csv")
 eemd_train = pd.read_csv(root_path+"/Huaxian_eemd/data/EEMD_TRAIN.csv")
 ssa_train = pd.read_csv(root_path+"/Huaxian_ssa/data/SSA_TRAIN.csv")
-dwt_train = pd.read_csv(root_path+"/Huaxian_wd/data/db10-lev2/WD_TRAIN.csv")
+dwt_train = pd.read_csv(root_path+"/Huaxian_dwt/data/db10-2/DWT_TRAIN.csv")
 vmd_train=vmd_train.drop("ORIG",axis=1)
 eemd_train=eemd_train.drop("ORIG",axis=1)
 ssa_train=ssa_train.drop("ORIG",axis=1)

@@ -14,7 +14,7 @@ plt.rcParams['font.size']=6
 
 
 vmd_train = pd.read_csv(root_path+"/Huaxian_vmd/data/one_step_3_month_forecast_pre20_thresh0.2//minmax_unsample_train.csv")
-dwt_train = pd.read_csv(root_path+"/Huaxian_wd/data/db10-lev2/one_step_3_month_forecast_pre20_thresh0.2/minmax_unsample_train.csv")
+dwt_train = pd.read_csv(root_path+"/Huaxian_dwt/data/db10-2/one_step_3_month_forecast_pre20_thresh0.2/minmax_unsample_train.csv")
 
 
 vmd_corrs = vmd_train.corr(method="pearson")

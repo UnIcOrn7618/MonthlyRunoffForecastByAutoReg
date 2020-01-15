@@ -1,0 +1,11 @@
+{
+    "data_part":{
+        "full_len" : 792,
+        "train_len" : 552,
+        "dev_len" : 120,
+        "test_len" : 120
+    }
+}
+
+
+

@@ -10,7 +10,7 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 graphs_path = root_path+'/results_analysis/graphs/'
 
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from mann_kendall import plot_trend
 
 huaxian = pd.read_excel(root_path+'/time_series/HuaxianRunoff1951-2018(1953-2018).xlsx')['MonthlyRunoff'][24:]

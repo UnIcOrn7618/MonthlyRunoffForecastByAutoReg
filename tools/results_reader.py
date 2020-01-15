@@ -9,8 +9,8 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 # root_path = os.path.abspath(os.path.join(root_path,os.path.pardir))
 from metrics_ import PPTS,mean_absolute_percentage_error
 
-def read_two_stage(station,decomposer,predict_pattern,wavelet_level="db10-lev2"):
-    if decomposer=="wd":
+def read_two_stage(station,decomposer,predict_pattern,wavelet_level="db10-2"):
+    if decomposer=="dwt":
         model_path = root_path+"\\"+station+"_"+decomposer+"\\projects\\esvr\\"+wavelet_level+"\\"+predict_pattern+"\\"
     else:
         model_path = root_path+"\\"+station+"_"+decomposer+"\\projects\\esvr\\"+predict_pattern+"\\"
@@ -36,8 +36,8 @@ def read_two_stage(station,decomposer,predict_pattern,wavelet_level="db10-lev2")
     time_cost=mean(time_cost)
     return records,predictions,r2,nrmse,mae,mape,ppts,time_cost
 
-def read_two_stage_traindev_test(station,decomposer,predict_pattern,wavelet_level="db10-lev2"):
-    if decomposer=="wd":
+def read_two_stage_traindev_test(station,decomposer,predict_pattern,wavelet_level="db10-2"):
+    if decomposer=="dwt":
         model_path = root_path+"\\"+station+"_"+decomposer+"\\projects\\esvr\\"+wavelet_level+"\\"+predict_pattern+"\\"
     else:
         model_path = root_path+"\\"+station+"_"+decomposer+"\\projects\\esvr\\"+predict_pattern+"\\"
@@ -93,8 +93,8 @@ def read_two_stage_traindev_test(station,decomposer,predict_pattern,wavelet_leve
     time_cost=mean(time_cost)
     return dev_y,dev_predss,test_y,test_predss,metrics_dict
 
-def read_two_stage_max(station,decomposer,predict_pattern,wavelet_level="db10-lev2"):
-    if decomposer=="wd":
+def read_two_stage_max(station,decomposer,predict_pattern,wavelet_level="db10-2"):
+    if decomposer=="dwt":
         model_path = root_path+"\\"+station+"_"+decomposer+"\\projects\\esvr\\"+wavelet_level+"\\"+predict_pattern+"\\"
     else:
         model_path = root_path+"\\"+station+"_"+decomposer+"\\projects\\esvr\\"+predict_pattern+"\\"
@@ -147,9 +147,9 @@ def read_pure_esvr(station):
     return records,predictions,r2,nrmse,mae,mape,ppts,time_cost
 
 
-def read_pca_metrics(station,decomposer,start_component,stop_component,wavelet_level="db10-lev2"):
+def read_pca_metrics(station,decomposer,start_component,stop_component,wavelet_level="db10-2"):
     
-    if decomposer=="wd":
+    if decomposer=="dwt":
         model_path = root_path+"\\"+station+"_"+decomposer+"\\data\\"+wavelet_level+"\\one_step_1_month_forecast\\"
     else:
         model_path = root_path+"\\"+station+"_"+decomposer+"\\data\\one_step_1_month_forecast\\"
@@ -178,7 +178,7 @@ def read_pca_metrics(station,decomposer,start_component,stop_component,wavelet_l
     mape=[]
     ppts=[]
     for i in range(start_component,stop_component+1):
-        if decomposer=="wd":
+        if decomposer=="dwt":
             model_path = root_path+"\\"+station+"_"+decomposer+"\\projects\\esvr\\"+wavelet_level+"\\one_step_1_month_forecast_with_pca_"+str(i)+"\\"
         else:
             model_path = root_path+"\\"+station+"_"+decomposer+"\\projects\\esvr\\one_step_1_month_forecast_with_pca_"+str(i)+"\\"
@@ -218,7 +218,7 @@ def read_pca_metrics(station,decomposer,start_component,stop_component,wavelet_l
 
     return mle,r2,nrmse,mae,mape,ppts
 
-def read_long_leading_time(station,decomposer,mode='new',wavelet_level="db10-lev2"):
+def read_long_leading_time(station,decomposer,mode='new',wavelet_level="db10-2"):
     records=[]
     predictions=[]
     nrmse=[]
@@ -227,7 +227,7 @@ def read_long_leading_time(station,decomposer,mode='new',wavelet_level="db10-lev
     mape=[]
     ppts=[]
     
-    if decomposer=="wd":
+    if decomposer=="dwt":
         model_path = root_path+"\\"+station+"_"+decomposer+"\\projects\\esvr\\"+wavelet_level+"\\"
     else:
         model_path = root_path+"\\"+station+"_"+decomposer+"\\projects\\esvr\\"
@@ -276,7 +276,7 @@ def read_long_leading_time(station,decomposer,mode='new',wavelet_level="db10-lev
     return records,predictions,r2,nrmse,mae,mape,ppts
 
 
-def read_long_leading_time_max(station,decomposer,model='new',wavelet_level="db10-lev2"):
+def read_long_leading_time_max(station,decomposer,model='new',wavelet_level="db10-2"):
     records=[]
     predictions=[]
     nrmse=[]
@@ -285,7 +285,7 @@ def read_long_leading_time_max(station,decomposer,model='new',wavelet_level="db1
     mape=[]
     ppts=[]
     
-    if decomposer=="wd":
+    if decomposer=="dwt":
         model_path = root_path+"\\"+station+"_"+decomposer+"\\projects\\esvr\\"+wavelet_level+"\\"
     else:
         model_path = root_path+"\\"+station+"_"+decomposer+"\\projects\\esvr\\"
@@ -339,8 +339,8 @@ def read_long_leading_time_max(station,decomposer,model='new',wavelet_level="db1
     return records,predictions,r2,nrmse,mae,mape,ppts
 
 
-def read_samples_num(station,decomposer,pre=20,wavelet_level="db10-lev2"):
-    if decomposer=="wd":
+def read_samples_num(station,decomposer,pre=20,wavelet_level="db10-2"):
+    if decomposer=="dwt":
         data_path = root_path+"/"+station+"_"+decomposer+"/data/"+wavelet_level+"/"
     else:
         data_path = root_path+"/"+station+"_"+decomposer+"/data/"

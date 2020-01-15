@@ -13,23 +13,23 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 graphs_path = root_path+'/results_analysis/graphs/'
 print("root path:{}".format(root_path))
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from results_reader import read_samples_num
 
 num_samples_eemd_hua = read_samples_num(station="Huaxian",decomposer="eemd",)
 num_samples_ssa_hua = read_samples_num(station="Huaxian",decomposer="ssa",)
 num_samples_vmd_hua = read_samples_num(station="Huaxian",decomposer="vmd",)
-num_samples_wd_hua = read_samples_num(station="Huaxian",decomposer="wd",)
+num_samples_dwt_hua = read_samples_num(station="Huaxian",decomposer="dwt",)
 
 num_samples_eemd_xian = read_samples_num(station="Xianyang",decomposer="eemd",)
 num_samples_ssa_xian = read_samples_num(station="Xianyang",decomposer="ssa",)
 num_samples_vmd_xian = read_samples_num(station="Xianyang",decomposer="vmd",)
-num_samples_wd_xian = read_samples_num(station="Xianyang",decomposer="wd",)
+num_samples_dwt_xian = read_samples_num(station="Xianyang",decomposer="dwt",)
 
 num_samples_eemd_zhang = read_samples_num(station="Zhangjiashan",decomposer="eemd",)
 num_samples_ssa_zhang = read_samples_num(station="Zhangjiashan",decomposer="ssa",)
 num_samples_vmd_zhang = read_samples_num(station="Zhangjiashan",decomposer="vmd",)
-num_samples_wd_zhang = read_samples_num(station="Zhangjiashan",decomposer="wd",)
+num_samples_dwt_zhang = read_samples_num(station="Zhangjiashan",decomposer="dwt",)
 
 
 one_month_hua_vmd = pd.read_csv(root_path+"/Huaxian_vmd/data/one_step_1_month_forecast/minmax_unsample_train.csv")
@@ -44,30 +44,30 @@ one_month_hua_ssa = pd.read_csv(root_path+"/Huaxian_ssa/data/one_step_1_month_fo
 one_month_hua_ssa = one_month_hua_ssa.drop("Y",axis=1)
 num_1_hua_ssa = one_month_hua_ssa.shape[1]
 
-one_month_hua_wd = pd.read_csv(root_path+"/Huaxian_wd/data/db10-lev2/one_step_1_month_forecast/minmax_unsample_train.csv")
-one_month_hua_wd = one_month_hua_wd.drop("Y",axis=1)
-num_1_hua_wd = one_month_hua_wd.shape[1]
+one_month_hua_dwt = pd.read_csv(root_path+"/Huaxian_dwt/data/db10-2/one_step_1_month_forecast/minmax_unsample_train.csv")
+one_month_hua_dwt = one_month_hua_dwt.drop("Y",axis=1)
+num_1_hua_dwt = one_month_hua_dwt.shape[1]
 
 num_1=[
     num_1_hua_eemd,
     num_1_hua_ssa,
     num_1_hua_vmd,
-    num_1_hua_wd,
+    num_1_hua_dwt,
 ]
 
 corrs=[
     num_samples_eemd_hua,
     num_samples_ssa_hua,
     num_samples_vmd_hua,
-    num_samples_wd_hua,
+    num_samples_dwt_hua,
     # num_samples_eemd_xian,
     # num_samples_ssa_xian,
     # num_samples_vmd_xian,
-    # num_samples_wd_xian,
+    # num_samples_dwt_xian,
     # num_samples_eemd_zhang,
     # num_samples_ssa_zhang,
     # num_samples_vmd_zhang,
-    # num_samples_wd_zhang,
+    # num_samples_dwt_zhang,
 ]
 
 lablels=[

@@ -11,7 +11,7 @@ graphs_path = root_path+'\\results_analysis\\graphs\\'
 
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_squared_log_error
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from metrics_ import PPTS,mean_absolute_percentage_error
 from results_reader import read_long_leading_time
 from fit_line import compute_linear_fit,compute_list_linear_fit
@@ -34,9 +34,9 @@ if __name__ == "__main__":
     z_s_records,z_s_predictions,z_s_r2,z_s_nrmse,z_s_mae,z_s_mape,z_s_ppts=read_long_leading_time(mode='0.3',station="Zhangjiashan",decomposer="ssa")
 
     # read metrics of dwt-svr models for all three stations
-    h_w_records,h_w_predictions,h_w_r2,h_w_nrmse,h_w_mae,h_w_mape,h_w_ppts=read_long_leading_time(mode='0.3',station="Huaxian",decomposer="wd")
-    x_w_records,x_w_predictions,x_w_r2,x_w_nrmse,x_w_mae,x_w_mape,x_w_ppts=read_long_leading_time(mode='0.3',station="Xianyang",decomposer="wd")
-    z_w_records,z_w_predictions,z_w_r2,z_w_nrmse,z_w_mae,z_w_mape,z_w_ppts=read_long_leading_time(mode='0.3',station="Zhangjiashan",decomposer="wd")
+    h_w_records,h_w_predictions,h_w_r2,h_w_nrmse,h_w_mae,h_w_mape,h_w_ppts=read_long_leading_time(mode='0.3',station="Huaxian",decomposer="dwt")
+    x_w_records,x_w_predictions,x_w_r2,x_w_nrmse,x_w_mae,x_w_mape,x_w_ppts=read_long_leading_time(mode='0.3',station="Xianyang",decomposer="dwt")
+    z_w_records,z_w_predictions,z_w_r2,z_w_nrmse,z_w_mae,z_w_mape,z_w_ppts=read_long_leading_time(mode='0.3',station="Zhangjiashan",decomposer="dwt")
 
     
     
@@ -327,11 +327,11 @@ if __name__ == "__main__":
     nse_vmd_data5=[h_v_r2[2],x_v_r2[2],z_v_r2[2]]
     nse_vmd_data7=[h_v_r2[3],x_v_r2[3],z_v_r2[3]]
     nse_vmd_data9=[h_v_r2[4],x_v_r2[4],z_v_r2[4]]
-    nse_wd_data1=[h_w_r2[0],x_w_r2[0],z_w_r2[0]]
-    nse_wd_data3=[h_w_r2[1],x_w_r2[1],z_w_r2[1]]
-    nse_wd_data5=[h_w_r2[2],x_w_r2[2],z_w_r2[2]]
-    nse_wd_data7=[h_w_r2[3],x_w_r2[3],z_w_r2[3]]
-    nse_wd_data9=[h_w_r2[4],x_w_r2[4],z_w_r2[4]]
+    nse_dwt_data1=[h_w_r2[0],x_w_r2[0],z_w_r2[0]]
+    nse_dwt_data3=[h_w_r2[1],x_w_r2[1],z_w_r2[1]]
+    nse_dwt_data5=[h_w_r2[2],x_w_r2[2],z_w_r2[2]]
+    nse_dwt_data7=[h_w_r2[3],x_w_r2[3],z_w_r2[3]]
+    nse_dwt_data9=[h_w_r2[4],x_w_r2[4],z_w_r2[4]]
     nse_data=[
         nse_eemd_data1,
         nse_eemd_data3,
@@ -348,11 +348,11 @@ if __name__ == "__main__":
         nse_vmd_data5,
         nse_vmd_data7,
         nse_vmd_data9,
-        nse_wd_data1,
-        nse_wd_data3,
-        nse_wd_data5,
-        nse_wd_data7,
-        nse_wd_data9,
+        nse_dwt_data1,
+        nse_dwt_data3,
+        nse_dwt_data5,
+        nse_dwt_data7,
+        nse_dwt_data9,
     ]
 
     eemd_mean_nse=[
@@ -379,12 +379,12 @@ if __name__ == "__main__":
         sum(nse_vmd_data9)/len(nse_vmd_data9),
     ]
 
-    wd_mean_nse=[
-        sum(nse_wd_data1)/len(nse_wd_data1),
-        sum(nse_wd_data3)/len(nse_wd_data3),
-        sum(nse_wd_data5)/len(nse_wd_data5),
-        sum(nse_wd_data7)/len(nse_wd_data7),
-        sum(nse_wd_data9)/len(nse_wd_data9),
+    dwt_mean_nse=[
+        sum(nse_dwt_data1)/len(nse_dwt_data1),
+        sum(nse_dwt_data3)/len(nse_dwt_data3),
+        sum(nse_dwt_data5)/len(nse_dwt_data5),
+        sum(nse_dwt_data7)/len(nse_dwt_data7),
+        sum(nse_dwt_data9)/len(nse_dwt_data9),
     ]
     
 
@@ -403,11 +403,11 @@ if __name__ == "__main__":
     nrmse_vmd_data5=[h_v_nrmse[2],x_v_nrmse[2],z_v_nrmse[2]]
     nrmse_vmd_data7=[h_v_nrmse[3],x_v_nrmse[3],z_v_nrmse[3]]
     nrmse_vmd_data9=[h_v_nrmse[4],x_v_nrmse[4],z_v_nrmse[4]]
-    nrmse_wd_data1=[h_w_nrmse[0],x_w_nrmse[0],z_w_nrmse[0]]
-    nrmse_wd_data3=[h_w_nrmse[1],x_w_nrmse[1],z_w_nrmse[1]]
-    nrmse_wd_data5=[h_w_nrmse[2],x_w_nrmse[2],z_w_nrmse[2]]
-    nrmse_wd_data7=[h_w_nrmse[3],x_w_nrmse[3],z_w_nrmse[3]]
-    nrmse_wd_data9=[h_w_nrmse[4],x_w_nrmse[4],z_w_nrmse[4]]
+    nrmse_dwt_data1=[h_w_nrmse[0],x_w_nrmse[0],z_w_nrmse[0]]
+    nrmse_dwt_data3=[h_w_nrmse[1],x_w_nrmse[1],z_w_nrmse[1]]
+    nrmse_dwt_data5=[h_w_nrmse[2],x_w_nrmse[2],z_w_nrmse[2]]
+    nrmse_dwt_data7=[h_w_nrmse[3],x_w_nrmse[3],z_w_nrmse[3]]
+    nrmse_dwt_data9=[h_w_nrmse[4],x_w_nrmse[4],z_w_nrmse[4]]
     nrmse_data=[
         nrmse_eemd_data1,
         nrmse_eemd_data3,
@@ -424,11 +424,11 @@ if __name__ == "__main__":
         nrmse_vmd_data5,
         nrmse_vmd_data7,
         nrmse_vmd_data9,
-        nrmse_wd_data1,
-        nrmse_wd_data3,
-        nrmse_wd_data5,
-        nrmse_wd_data7,
-        nrmse_wd_data9,
+        nrmse_dwt_data1,
+        nrmse_dwt_data3,
+        nrmse_dwt_data5,
+        nrmse_dwt_data7,
+        nrmse_dwt_data9,
     ]
 
     eemd_mean_nrmse=[
@@ -455,12 +455,12 @@ if __name__ == "__main__":
         sum(nrmse_vmd_data9)/len(nrmse_vmd_data9),
     ]
 
-    wd_mean_nrmse=[
-        sum(nrmse_wd_data1)/len(nrmse_wd_data1),
-        sum(nrmse_wd_data3)/len(nrmse_wd_data3),
-        sum(nrmse_wd_data5)/len(nrmse_wd_data5),
-        sum(nrmse_wd_data7)/len(nrmse_wd_data7),
-        sum(nrmse_wd_data9)/len(nrmse_wd_data9),
+    dwt_mean_nrmse=[
+        sum(nrmse_dwt_data1)/len(nrmse_dwt_data1),
+        sum(nrmse_dwt_data3)/len(nrmse_dwt_data3),
+        sum(nrmse_dwt_data5)/len(nrmse_dwt_data5),
+        sum(nrmse_dwt_data7)/len(nrmse_dwt_data7),
+        sum(nrmse_dwt_data9)/len(nrmse_dwt_data9),
     ]
 
     ppts_eemd_data1=[h_e_ppts[0],x_e_ppts[0],z_e_ppts[0]]
@@ -478,11 +478,11 @@ if __name__ == "__main__":
     ppts_vmd_data5=[h_v_ppts[2],x_v_ppts[2],z_v_ppts[2]]
     ppts_vmd_data7=[h_v_ppts[3],x_v_ppts[3],z_v_ppts[3]]
     ppts_vmd_data9=[h_v_ppts[4],x_v_ppts[4],z_v_ppts[4]]
-    ppts_wd_data1=[h_w_ppts[0],x_w_ppts[0],z_w_ppts[0]]
-    ppts_wd_data3=[h_w_ppts[1],x_w_ppts[1],z_w_ppts[1]]
-    ppts_wd_data5=[h_w_ppts[2],x_w_ppts[2],z_w_ppts[2]]
-    ppts_wd_data7=[h_w_ppts[3],x_w_ppts[3],z_w_ppts[3]]
-    ppts_wd_data9=[h_w_ppts[4],x_w_ppts[4],z_w_ppts[4]]
+    ppts_dwt_data1=[h_w_ppts[0],x_w_ppts[0],z_w_ppts[0]]
+    ppts_dwt_data3=[h_w_ppts[1],x_w_ppts[1],z_w_ppts[1]]
+    ppts_dwt_data5=[h_w_ppts[2],x_w_ppts[2],z_w_ppts[2]]
+    ppts_dwt_data7=[h_w_ppts[3],x_w_ppts[3],z_w_ppts[3]]
+    ppts_dwt_data9=[h_w_ppts[4],x_w_ppts[4],z_w_ppts[4]]
     ppts_data=[
         ppts_eemd_data1,
         ppts_eemd_data3,
@@ -499,11 +499,11 @@ if __name__ == "__main__":
         ppts_vmd_data5,
         ppts_vmd_data7,
         ppts_vmd_data9,
-        ppts_wd_data1,
-        ppts_wd_data3,
-        ppts_wd_data5,
-        ppts_wd_data7,
-        ppts_wd_data9,
+        ppts_dwt_data1,
+        ppts_dwt_data3,
+        ppts_dwt_data5,
+        ppts_dwt_data7,
+        ppts_dwt_data9,
     ]
 
     eemd_mean_ppts=[
@@ -530,12 +530,12 @@ if __name__ == "__main__":
         sum(ppts_vmd_data9)/len(ppts_vmd_data9),
     ]
 
-    wd_mean_ppts=[
-        sum(ppts_wd_data1)/len(ppts_wd_data1),
-        sum(ppts_wd_data3)/len(ppts_wd_data3),
-        sum(ppts_wd_data5)/len(ppts_wd_data5),
-        sum(ppts_wd_data7)/len(ppts_wd_data7),
-        sum(ppts_wd_data9)/len(ppts_wd_data9),
+    dwt_mean_ppts=[
+        sum(ppts_dwt_data1)/len(ppts_dwt_data1),
+        sum(ppts_dwt_data3)/len(ppts_dwt_data3),
+        sum(ppts_dwt_data5)/len(ppts_dwt_data5),
+        sum(ppts_dwt_data7)/len(ppts_dwt_data7),
+        sum(ppts_dwt_data9)/len(ppts_dwt_data9),
     ]
 
 
@@ -543,21 +543,21 @@ if __name__ == "__main__":
         eemd_mean_nse,
         ssa_mean_nse,
         vmd_mean_nse,
-        wd_mean_nse,
+        dwt_mean_nse,
     ]
 
     nrmse_lines=[
         eemd_mean_nrmse,
         ssa_mean_nrmse,
         vmd_mean_nrmse,
-        wd_mean_nrmse,
+        dwt_mean_nrmse,
     ]
 
     ppts_lines=[
         eemd_mean_ppts,
         ssa_mean_ppts,
         vmd_mean_ppts,
-        wd_mean_ppts,
+        dwt_mean_ppts,
     ]
 
     lines=[
@@ -639,7 +639,7 @@ if __name__ == "__main__":
         print("SSA-SVR for {}-month reduced:{}%".format(2*i+1,ratio))
         ratio = (eemd_mean_nse[i]-base_nse)/base_nse*100
         print("EEMMD-SVR for {}-month reduced:{}%".format(2*i+1,ratio))
-        ratio = (wd_mean_nse[i]-base_nse)/base_nse*100
+        ratio = (dwt_mean_nse[i]-base_nse)/base_nse*100
         print("DWT-SVR for {}-month reduced:{}%".format(2*i+1,ratio))
     print("NRMSE"+"-"*100)
     base_nrmse = vmd_mean_nrmse[0]
@@ -650,7 +650,7 @@ if __name__ == "__main__":
         print("SSA-SVR for {}-month reduced:{}%".format(2*i+1,ratio))
         ratio = (eemd_mean_nrmse[i]-base_nrmse)/base_nrmse*100
         print("EEMMD-SVR for {}-month reduced:{}%".format(2*i+1,ratio))
-        ratio = (wd_mean_nrmse[i]-base_nrmse)/base_nrmse*100
+        ratio = (dwt_mean_nrmse[i]-base_nrmse)/base_nrmse*100
         print("DWT-SVR for {}-month reduced:{}%".format(2*i+1,ratio))
     print("PPTS"+"-"*100)
     base_ppts = vmd_mean_ppts[0]
@@ -661,6 +661,6 @@ if __name__ == "__main__":
         print("SSA-SVR for {}-month reduced:{}%".format(2*i+1,ratio))
         ratio = (eemd_mean_ppts[i]-base_ppts)/base_ppts*100
         print("EEMMD-SVR for {}-month reduced:{}%".format(2*i+1,ratio))
-        ratio = (wd_mean_ppts[i]-base_ppts)/base_ppts*100
+        ratio = (dwt_mean_ppts[i]-base_ppts)/base_ppts*100
         print("DWT-SVR for {}-month reduced:{}%".format(2*i+1,ratio))
 

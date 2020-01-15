@@ -7,7 +7,7 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 # root_path = os.path.abspath(os.path.join(root_path,os.path.pardir))
 graphs_path = root_path+'/results_analysis/graphs/'
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from results_reader import read_two_stage,read_pure_esvr
 
 h_records,h_predictions,h_r2,h_nrmse,h_mae,h_mape,h_ppts,h_timecost=read_pure_esvr("Huaxian")
@@ -17,38 +17,38 @@ z_records,z_predictions,z_r2,z_nrmse,z_mae,z_mape,z_ppts,z_timecost=read_pure_es
 huaxian_eemd = pd.read_csv(root_path+'/Huaxian_eemd/projects/esvr/multi_step_1_month_forecast/esvr_Huaxian_eemd_sum_model_test_metrics.csv')
 huaxian_ssa = pd.read_csv(root_path+'/Huaxian_ssa/projects/esvr/multi_step_1_month_forecast/esvr_Huaxian_ssa_sum_model_test_metrics.csv')
 huaxian_vmd = pd.read_csv(root_path+'/Huaxian_vmd/projects/esvr/multi_step_1_month_forecast/esvr_Huaxian_vmd_sum_model_test_metrics.csv')
-huaxian_wd = pd.read_csv(root_path+'/Huaxian_wd/projects/esvr/db10-lev2/multi_step_1_month_forecast/esvr_Huaxian_wd_sum_model_test_metrics.csv')
+huaxian_dwt = pd.read_csv(root_path+'/Huaxian_dwt/projects/esvr/db10-2/multi_step_1_month_forecast/esvr_Huaxian_dwt_sum_model_test_metrics.csv')
 
 xianyang_eemd = pd.read_csv(root_path+'/Xianyang_eemd/projects/esvr/multi_step_1_month_forecast/esvr_Xianyang_eemd_sum_model_test_metrics.csv')
 xianyang_ssa = pd.read_csv(root_path+'/Xianyang_ssa/projects/esvr/multi_step_1_month_forecast/esvr_Xianyang_ssa_sum_model_test_metrics.csv')
 xianyang_vmd = pd.read_csv(root_path+'/Xianyang_vmd/projects/esvr/multi_step_1_month_forecast/esvr_Xianyang_vmd_sum_model_test_metrics.csv')
-xianyang_wd = pd.read_csv(root_path+'/Xianyang_wd/projects/esvr/db10-lev2/multi_step_1_month_forecast/esvr_Xianyang_wd_sum_model_test_metrics.csv')
+xianyang_dwt = pd.read_csv(root_path+'/Xianyang_dwt/projects/esvr/db10-2/multi_step_1_month_forecast/esvr_Xianyang_dwt_sum_model_test_metrics.csv')
 
 zhangjiashan_eemd = pd.read_csv(root_path+'/Zhangjiashan_eemd/projects/esvr/multi_step_1_month_forecast/esvr_Zhangjiashan_eemd_sum_model_test_metrics.csv')
 zhangjiashan_ssa = pd.read_csv(root_path+'/Zhangjiashan_ssa/projects/esvr/multi_step_1_month_forecast/esvr_Zhangjiashan_ssa_sum_model_test_metrics.csv')
 zhangjiashan_vmd = pd.read_csv(root_path+'/Zhangjiashan_vmd/projects/esvr/multi_step_1_month_forecast/esvr_Zhangjiashan_vmd_sum_model_test_metrics.csv')
-zhangjiashan_wd = pd.read_csv(root_path+'/Zhangjiashan_wd/projects/esvr/db10-lev2/multi_step_1_month_forecast/esvr_Zhangjiashan_wd_sum_model_test_metrics.csv')
+zhangjiashan_dwt = pd.read_csv(root_path+'/Zhangjiashan_dwt/projects/esvr/db10-2/multi_step_1_month_forecast/esvr_Zhangjiashan_dwt_sum_model_test_metrics.csv')
 
-huaxian_r2 = [h_r2,huaxian_eemd['test_r2'][0],huaxian_ssa['test_r2'][0],huaxian_vmd['test_r2'][0],huaxian_wd['test_r2'][0],]
-huaxian_nrmse = [h_nrmse,huaxian_eemd['test_nrmse'][0],huaxian_ssa['test_nrmse'][0],huaxian_vmd['test_nrmse'][0],huaxian_wd['test_nrmse'][0],]
-huaxian_mae = [h_mae,huaxian_eemd['test_mae'][0],huaxian_ssa['test_mae'][0],huaxian_vmd['test_mae'][0],huaxian_wd['test_mae'][0],]
-huaxian_mape = [h_mape,huaxian_eemd['test_mape'][0],huaxian_ssa['test_mape'][0],huaxian_vmd['test_mape'][0],huaxian_wd['test_mape'][0],]
-huaxian_ppts = [h_ppts,huaxian_eemd['test_ppts'][0],huaxian_ssa['test_ppts'][0],huaxian_vmd['test_ppts'][0],huaxian_wd['test_ppts'][0],]
-huaxian_time = [h_timecost,huaxian_eemd['time_cost'][0],huaxian_ssa['time_cost'][0],huaxian_vmd['time_cost'][0],huaxian_wd['time_cost'][0],]
+huaxian_r2 = [h_r2,huaxian_eemd['test_r2'][0],huaxian_ssa['test_r2'][0],huaxian_vmd['test_r2'][0],huaxian_dwt['test_r2'][0],]
+huaxian_nrmse = [h_nrmse,huaxian_eemd['test_nrmse'][0],huaxian_ssa['test_nrmse'][0],huaxian_vmd['test_nrmse'][0],huaxian_dwt['test_nrmse'][0],]
+huaxian_mae = [h_mae,huaxian_eemd['test_mae'][0],huaxian_ssa['test_mae'][0],huaxian_vmd['test_mae'][0],huaxian_dwt['test_mae'][0],]
+huaxian_mape = [h_mape,huaxian_eemd['test_mape'][0],huaxian_ssa['test_mape'][0],huaxian_vmd['test_mape'][0],huaxian_dwt['test_mape'][0],]
+huaxian_ppts = [h_ppts,huaxian_eemd['test_ppts'][0],huaxian_ssa['test_ppts'][0],huaxian_vmd['test_ppts'][0],huaxian_dwt['test_ppts'][0],]
+huaxian_time = [h_timecost,huaxian_eemd['time_cost'][0],huaxian_ssa['time_cost'][0],huaxian_vmd['time_cost'][0],huaxian_dwt['time_cost'][0],]
 
-xianyang_r2 = [x_r2,xianyang_eemd['test_r2'][0],xianyang_ssa['test_r2'][0],xianyang_vmd['test_r2'][0],xianyang_wd['test_r2'][0],]
-xianyang_nrmse = [x_nrmse,xianyang_eemd['test_nrmse'][0],xianyang_ssa['test_nrmse'][0],xianyang_vmd['test_nrmse'][0],xianyang_wd['test_nrmse'][0],]
-xianyang_mae = [x_mae,xianyang_eemd['test_mae'][0],xianyang_ssa['test_mae'][0],xianyang_vmd['test_mae'][0],xianyang_wd['test_mae'][0],]
-xianyang_mape = [x_mape,xianyang_eemd['test_mape'][0],xianyang_ssa['test_mape'][0],xianyang_vmd['test_mape'][0],xianyang_wd['test_mape'][0],]
-xianyang_ppts = [x_ppts,xianyang_eemd['test_ppts'][0],xianyang_ssa['test_ppts'][0],xianyang_vmd['test_ppts'][0],xianyang_wd['test_ppts'][0],]
-xianyang_time = [x_timecost,xianyang_eemd['time_cost'][0],xianyang_ssa['time_cost'][0],xianyang_vmd['time_cost'][0],xianyang_wd['time_cost'][0],]
+xianyang_r2 = [x_r2,xianyang_eemd['test_r2'][0],xianyang_ssa['test_r2'][0],xianyang_vmd['test_r2'][0],xianyang_dwt['test_r2'][0],]
+xianyang_nrmse = [x_nrmse,xianyang_eemd['test_nrmse'][0],xianyang_ssa['test_nrmse'][0],xianyang_vmd['test_nrmse'][0],xianyang_dwt['test_nrmse'][0],]
+xianyang_mae = [x_mae,xianyang_eemd['test_mae'][0],xianyang_ssa['test_mae'][0],xianyang_vmd['test_mae'][0],xianyang_dwt['test_mae'][0],]
+xianyang_mape = [x_mape,xianyang_eemd['test_mape'][0],xianyang_ssa['test_mape'][0],xianyang_vmd['test_mape'][0],xianyang_dwt['test_mape'][0],]
+xianyang_ppts = [x_ppts,xianyang_eemd['test_ppts'][0],xianyang_ssa['test_ppts'][0],xianyang_vmd['test_ppts'][0],xianyang_dwt['test_ppts'][0],]
+xianyang_time = [x_timecost,xianyang_eemd['time_cost'][0],xianyang_ssa['time_cost'][0],xianyang_vmd['time_cost'][0],xianyang_dwt['time_cost'][0],]
 
-zhangjiashan_r2 = [z_r2,zhangjiashan_eemd['test_r2'][0],zhangjiashan_ssa['test_r2'][0],zhangjiashan_vmd['test_r2'][0],zhangjiashan_wd['test_r2'][0],]
-zhangjiashan_nrmse = [z_nrmse,zhangjiashan_eemd['test_nrmse'][0],zhangjiashan_ssa['test_nrmse'][0],zhangjiashan_vmd['test_nrmse'][0],zhangjiashan_wd['test_nrmse'][0],]
-zhangjiashan_mae = [z_mae,zhangjiashan_eemd['test_mae'][0],zhangjiashan_ssa['test_mae'][0],zhangjiashan_vmd['test_mae'][0],zhangjiashan_wd['test_mae'][0],]
-zhangjiashan_mape = [z_mape,zhangjiashan_eemd['test_mape'][0],zhangjiashan_ssa['test_mape'][0],zhangjiashan_vmd['test_mape'][0],zhangjiashan_wd['test_mape'][0],]
-zhangjiashan_ppts = [z_ppts,zhangjiashan_eemd['test_ppts'][0],zhangjiashan_ssa['test_ppts'][0],zhangjiashan_vmd['test_ppts'][0],zhangjiashan_wd['test_ppts'][0],]
-zhangjiashan_time = [z_timecost,zhangjiashan_eemd['time_cost'][0],zhangjiashan_ssa['time_cost'][0],zhangjiashan_vmd['time_cost'][0],zhangjiashan_wd['time_cost'][0],]
+zhangjiashan_r2 = [z_r2,zhangjiashan_eemd['test_r2'][0],zhangjiashan_ssa['test_r2'][0],zhangjiashan_vmd['test_r2'][0],zhangjiashan_dwt['test_r2'][0],]
+zhangjiashan_nrmse = [z_nrmse,zhangjiashan_eemd['test_nrmse'][0],zhangjiashan_ssa['test_nrmse'][0],zhangjiashan_vmd['test_nrmse'][0],zhangjiashan_dwt['test_nrmse'][0],]
+zhangjiashan_mae = [z_mae,zhangjiashan_eemd['test_mae'][0],zhangjiashan_ssa['test_mae'][0],zhangjiashan_vmd['test_mae'][0],zhangjiashan_dwt['test_mae'][0],]
+zhangjiashan_mape = [z_mape,zhangjiashan_eemd['test_mape'][0],zhangjiashan_ssa['test_mape'][0],zhangjiashan_vmd['test_mape'][0],zhangjiashan_dwt['test_mape'][0],]
+zhangjiashan_ppts = [z_ppts,zhangjiashan_eemd['test_ppts'][0],zhangjiashan_ssa['test_ppts'][0],zhangjiashan_vmd['test_ppts'][0],zhangjiashan_dwt['test_ppts'][0],]
+zhangjiashan_time = [z_timecost,zhangjiashan_eemd['time_cost'][0],zhangjiashan_ssa['time_cost'][0],zhangjiashan_vmd['time_cost'][0],zhangjiashan_dwt['time_cost'][0],]
 
 def autolabels(rects,ax):
     """Attach a text label above each bar in *rects*, displaying its height."""
@@ -166,7 +166,7 @@ nse_data = [
     [huaxian_eemd['test_r2'][0],xianyang_eemd["test_r2"][0],zhangjiashan_eemd["test_r2"][0]],
     [huaxian_ssa["test_r2"][0],xianyang_ssa["test_r2"][0],zhangjiashan_ssa["test_r2"][0]],
     [huaxian_vmd["test_r2"][0],xianyang_vmd["test_r2"][0],zhangjiashan_vmd["test_r2"][0]],
-    [huaxian_wd["test_r2"][0],xianyang_wd["test_r2"][0],zhangjiashan_wd["test_r2"][0]],
+    [huaxian_dwt["test_r2"][0],xianyang_dwt["test_r2"][0],zhangjiashan_dwt["test_r2"][0]],
 ]
 
 mean_nse =[]
@@ -180,7 +180,7 @@ nrmse_data = [
     [huaxian_eemd["test_nrmse"][0],xianyang_eemd["test_nrmse"][0],zhangjiashan_eemd["test_nrmse"][0]],
     [huaxian_ssa["test_nrmse"][0],xianyang_ssa["test_nrmse"][0],zhangjiashan_ssa["test_nrmse"][0]],
     [huaxian_vmd["test_nrmse"][0],xianyang_vmd["test_nrmse"][0],zhangjiashan_vmd["test_nrmse"][0]],
-    [huaxian_wd["test_nrmse"][0],xianyang_wd["test_nrmse"][0],zhangjiashan_wd["test_nrmse"][0]],
+    [huaxian_dwt["test_nrmse"][0],xianyang_dwt["test_nrmse"][0],zhangjiashan_dwt["test_nrmse"][0]],
 ]
 
 mean_nrmse =[]
@@ -194,7 +194,7 @@ ppts_data = [
     [huaxian_eemd["test_ppts"][0],xianyang_eemd["test_ppts"][0],zhangjiashan_eemd["test_ppts"][0]],
     [huaxian_ssa["test_ppts"][0],xianyang_ssa["test_ppts"][0],zhangjiashan_ssa["test_ppts"][0]],
     [huaxian_vmd["test_ppts"][0],xianyang_vmd["test_ppts"][0],zhangjiashan_vmd["test_ppts"][0]],
-    [huaxian_wd["test_ppts"][0],xianyang_wd["test_ppts"][0],zhangjiashan_wd["test_ppts"][0]],
+    [huaxian_dwt["test_ppts"][0],xianyang_dwt["test_ppts"][0],zhangjiashan_dwt["test_ppts"][0]],
 ]
 
 mean_ppts =[]
@@ -208,7 +208,7 @@ timecost_data = [
     [huaxian_eemd["time_cost"][0],xianyang_eemd["time_cost"][0],zhangjiashan_eemd["time_cost"][0]],
     [huaxian_ssa["time_cost"][0],xianyang_ssa["time_cost"][0],zhangjiashan_ssa["time_cost"][0]],
     [huaxian_vmd["time_cost"][0],xianyang_vmd["time_cost"][0],zhangjiashan_vmd["time_cost"][0]],
-    [huaxian_wd["time_cost"][0],xianyang_wd["time_cost"][0],zhangjiashan_wd["time_cost"][0]],
+    [huaxian_dwt["time_cost"][0],xianyang_dwt["time_cost"][0],zhangjiashan_dwt["time_cost"][0]],
 ]
 
 mean_time =[]

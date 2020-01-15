@@ -21,7 +21,7 @@ if not os.path.exists(model_path):
     os.makedirs(model_path)
     
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from dump_data import dum_pred_results
 from plot_utils import plot_rela_pred,plot_history,plot_error_distribution,plot_convergence_,plot_evaluations_,plot_objective_
 from variables import lags

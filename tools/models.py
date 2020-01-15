@@ -5,40 +5,45 @@ import matplotlib.pyplot as plt
 plt.set_cmap("viridis")
 import datetime
 import time
-import os
-import sys
 #### import libs for optimize SVR or GBRT
 from sklearn.svm import SVR,NuSVR
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import cross_val_score
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_squared_log_error
+from sklearn.externals.joblib import Parallel, delayed
 from skopt.space import Real, Integer
 from skopt.utils import use_named_args
-from functools import partial
 from skopt import gp_minimize,forest_minimize, dummy_minimize
 from skopt.plots import plot_convergence,plot_objective,plot_evaluations
-from sklearn.externals import joblib
 from skopt import dump, load
+from skopt import Optimizer
+from skopt.benchmarks import branin
+from functools import partial
+from statsmodels.tsa.arima_model import ARIMA
+from random import random
 # from skopt.callbacks import CheckpointSaver
 
-#### import libs for building tensorflow
-# set parameters to make the program not use GPU
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 print(tf.__version__)
 from tensorflow.keras.callbacks import ReduceLROnPlateau,EarlyStopping
 
+import os
+root_path = os.path.dirname(os.path.abspath('_file_'))
+import sys
+sys.path.append(root_path)
+from config.globalLog import logger
+
 
 # import own coding libs
-from plot_utils import plot_convergence_
-from plot_utils import plot_evaluations_
-from plot_utils import plot_objective_
-from plot_utils import plot_rela_pred
-from plot_utils import plot_history
-from plot_utils import plot_error_distribution
-from dump_data import dum_pred_results
+from tools.plot_utils import plot_convergence_
+from tools.plot_utils import plot_evaluations_
+from tools.plot_utils import plot_objective_
+from tools.plot_utils import plot_rela_pred
+from tools.plot_utils import plot_history
+from tools.plot_utils import plot_error_distribution
+from tools.dump_data import dum_pred_results
 
 ESVR_SPACE = [
         # Penalty parameter `C` of the error term
@@ -56,30 +61,100 @@ EPS_DPI = 2000
 TIFF_DPI=1200
 
 
-def multi_optimizer_esvr(root_path,station,n_calls=100):
-    """
-    """
+def multi_optimizer_esvr(root_path,station,predict_pattern,n_calls=100,retrain=False):
     # Set the time series and model parameters
-    STATION = station
-    PREDICTOR = 'esvr'
-    data_path = root_path + '/'+STATION+'/data/'
-    model_path = root_path+'/'+STATION+'/projects/'+PREDICTOR+'/multi_optimizer/'
+    predictor = 'esvr'
+    data_path = root_path + '/'+station+'/data/'+predict_pattern+'/'
+    model_path = root_path+'/'+station+'/projects/'+predictor+'/'+predict_pattern+'/multi_optimizer/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    MODEL_NAME = STATION+'_'+PREDICTOR
-    print("Data Path:{}".format(data_path))
-    print("Model Path:{}".format(model_path))
+    model_name = station+'_'+predictor
+    logger.info("Build multiple optimizer epsilon SVR...")
+    logger.info('Model information:')
+    logger.info("\tRoot path:{}".format(root_path))
+    logger.info("\tStation:{}".format(station))
+    logger.info("\tPredict pattern:{}".format(predict_pattern))
+    logger.info("\tNumber of calls:{}".format(n_calls))
+    logger.info("\tData Path:{}".format(data_path))
+    logger.info("\tModel Path:{}".format(model_path))
 
     
-    if os.path.exists(model_path +MODEL_NAME+'_optimized_params.csv'):
-        optimal_params = pd.read_csv(model_path +MODEL_NAME+'_optimized_params.csv')
+    if os.path.exists(model_path +model_name+'_optimized_params.csv') :
+        optimal_params = pd.read_csv(model_path +model_name+'_optimized_params.csv')
         pre_n_calls = optimal_params['n_calls'][0]
-        if pre_n_calls==n_calls:
-            print("The n_calls="+str(n_calls)+" was already tuned")
-            sys.exit()
+        if pre_n_calls==n_calls and not retrain:
+            logger.info("The n_calls="+str(n_calls)+" was already tuned")
+        else:
+            logger.info('Load learning samples...')
+            # Load the training, development and testing samples
+            train = pd.read_csv(data_path+'minmax_unsample_train.csv',index_col=False)
+            dev = pd.read_csv(data_path+'minmax_unsample_dev.csv',index_col=False)
+            test = pd.read_csv(data_path+'minmax_unsample_test.csv',index_col=False)
+            train_dev = pd.concat([train,dev],axis=0)
+            # shuffle the training samples
+            train_dev = train_dev.sample(frac=1)
+            train_y = train['Y']
+            train_x = train.drop('Y', axis=1)
+            dev_y = dev['Y']
+            dev_x = dev.drop('Y', axis=1)
+            test_y = test['Y']
+            test_x = test.drop('Y', axis=1)
+            train_dev_y = train_dev['Y']
+            train_dev_x = train_dev.drop('Y', axis=1)
+            logger.info('Build SVR model and set the evaluation space of Bayesian optimization.')
+            reg = SVR(tol=1e-4)
+            # Set the space of hyper-parameters for tuning them
+            space = ESVR_SPACE
+            # Define an objective function of hyper-parameters tuning
+            @use_named_args(space)
+            def objective(**params):
+                reg.set_params(**params)
+                return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
 
+            def run(minimizer, n_iter=5):
+                return [minimizer(objective, space, n_calls=n_calls, random_state=n) 
+                        for n in range(n_iter)]
+            #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
+            # Random search
+            dummy_res = run(dummy_minimize) 
+            # Gaussian processes
+            gp_res = run(gp_minimize)
+            # Random forest
+            rf_res = run(partial(forest_minimize, base_estimator="RF"))
+            # Extra trees 
+            et_res = run(partial(forest_minimize, base_estimator="ET"))
+
+
+            plot = plot_convergence(("dummy_minimize", dummy_res),
+                                ("gp_minimize", gp_res),
+                                ("forest_minimize('rf')", rf_res),
+                                ("forest_minimize('et)", et_res), 
+                                true_minimum=0.397887, yscale="log")
+
+            plot.legend(loc="best", prop={'size': 6}, numpoints=1);
+            plt.close('all')
+    
+
+def esvr(root_path,station,predict_pattern,optimizer='gp_minimize',n_calls=100):
+    logger.info("Build monoscale epsilon SVR model ...")
+    logger.info("Model information:")
+    logger.info("\tRoot path:{}".format(root_path))
+    logger.info("\tStation:{}".format(station))
+    logger.info("\tPredict pattern:{}".format(predict_pattern))
+    logger.info("\tOptimizer:{}".format(optimizer))
+    logger.info("\tNumber of calls:{}".format(n_calls))
+    predictor = 'esvr'
+    data_path = root_path + '/'+station+'/data/'+predict_pattern+'/'
+    model_path = root_path+'/'+station+'/projects/'+predictor+'/'+predict_pattern+'/history/'
+    if not os.path.exists(model_path):
+        os.makedirs(model_path)
+    model_name = station+'_'+predictor
+    logger.info("\tData Path:{}".format(data_path))
+    logger.info("\tModel Path:{}".format(model_path))
+    logger.info("\tModel name:{}".format(model_name))
 
     # Load the training, development and testing samples
+    logger.info('Load learning samples...')
     train = pd.read_csv(data_path+'minmax_unsample_train.csv',index_col=False)
     dev = pd.read_csv(data_path+'minmax_unsample_dev.csv',index_col=False)
     test = pd.read_csv(data_path+'minmax_unsample_test.csv',index_col=False)
@@ -95,78 +170,11 @@ def multi_optimizer_esvr(root_path,station,n_calls=100):
     train_dev_y = train_dev['Y']
     train_dev_x = train_dev.drop('Y', axis=1)
 
-
-
-    reg = SVR(tol=1e-4)
-
-    # Set the space of hyper-parameters for tuning them
-    space = ESVR_SPACE
-
-    # Define an objective function of hyper-parameters tuning
-    @use_named_args(space)
-    def objective(**params):
-        reg.set_params(**params)
-        return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
-    
-    def run(minimizer, n_iter=5):
-        return [minimizer(objective, space, n_calls=n_calls, random_state=n) 
-                for n in range(n_iter)]
-    #checkpoint_saver = CheckpointSaver(model_path+MODEL_NAME+'/checkpoint.pkl',compress=9)
-    # Random search
-    dummy_res = run(dummy_minimize) 
-    # Gaussian processes
-    gp_res = run(gp_minimize)
-    # Random forest
-    rf_res = run(partial(forest_minimize, base_estimator="RF"))
-    # Extra trees 
-    et_res = run(partial(forest_minimize, base_estimator="ET"))
-
-
-    plot = plot_convergence(("dummy_minimize", dummy_res),
-                        ("gp_minimize", gp_res),
-                        ("forest_minimize('rf')", rf_res),
-                        ("forest_minimize('et)", et_res), 
-                        true_minimum=0.397887, yscale="log")
-
-    plot.legend(loc="best", prop={'size': 6}, numpoints=1);
-    plt.show()
-
-def esvr(root_path,station,optimizer='gp_minimize',n_calls=100):
-    """
-    """
-    # Set the time series and model parameters
-    STATION = station
-    PREDICTOR = 'esvr'
-    data_path = root_path + '/'+STATION+'/data/'
-    model_path = root_path+'/'+STATION+'/projects/'+PREDICTOR+'/'
-    if not os.path.exists(model_path):
-        os.makedirs(model_path)
-    MODEL_NAME = STATION+'_'+PREDICTOR
-    print("Data Path:{}".format(data_path))
-    print("Model Path:{}".format(model_path))
-
-    # Load the training, development and testing samples
-    train = pd.read_csv(data_path+'minmax_unsample_train.csv',index_col=False)
-    dev = pd.read_csv(data_path+'minmax_unsample_dev.csv',index_col=False)
-    test = pd.read_csv(data_path+'minmax_unsample_test.csv',index_col=False)
-    train_dev = pd.concat([train,dev],axis=0)
-    # shuffle the training samples
-    train_dev = train_dev.sample(frac=1)
-    train_y = train['Y']
-    train_x = train.drop('Y', axis=1)
-    dev_y = dev['Y']
-    dev_x = dev.drop('Y', axis=1)
-    test_y = test['Y']
-    test_x = test.drop('Y', axis=1)
-    train_dev_y = train_dev['Y']
-    train_dev_x = train_dev.drop('Y', axis=1)
-
-    if os.path.exists(model_path +MODEL_NAME+'_optimized_params.csv'):
-        optimal_params = pd.read_csv(model_path +MODEL_NAME+'_optimized_params.csv')
+    if os.path.exists(model_path +model_name+'_optimized_params.csv'):
+        optimal_params = pd.read_csv(model_path +model_name+'_optimized_params.csv')
         pre_n_calls = optimal_params['n_calls'][0]
         if pre_n_calls==n_calls:
-            print("The n_calls="+str(n_calls)+" was already tuned")
-            
+            logger.info("The n_calls="+str(n_calls)+" was already tuned")
             esvr = SVR(C=optimal_params['C'][0], epsilon=optimal_params['epsilon'][0], gamma=optimal_params['gamma'][0])
             train_predictions = esvr.fit(train_dev_x,train_dev_y).predict(train_x)
             dev_predictions = esvr.fit(train_dev_x,train_dev_y).predict(dev_x)
@@ -177,8 +185,8 @@ def esvr(root_path,station,optimizer='gp_minimize',n_calls=100):
             norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
             sMin = norm_id['series_min'][norm_id.shape[0]-1]
             sMax = norm_id['series_max'][norm_id.shape[0]-1]
-            print('Series Min:\n {}'.format(sMin))
-            print('Series Max:\n {}'.format(sMax))
+            logger.debug('Series Min:\n {}'.format(sMin))
+            logger.debug('Series Max:\n {}'.format(sMax))
             train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
             dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
             test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
@@ -189,7 +197,7 @@ def esvr(root_path,station,optimizer='gp_minimize',n_calls=100):
             test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
             test_predictions[test_predictions<0.0]=0.0
             dum_pred_results(
-                path = model_path+MODEL_NAME+'.csv',
+                path = model_path+model_name+'.csv',
                 train_y = train_y,
                 train_predictions=train_predictions,
                 dev_y = dev_y,
@@ -199,12 +207,12 @@ def esvr(root_path,station,optimizer='gp_minimize',n_calls=100):
                 time_cost = optimal_params['time_cost'][0],
                 )
             sys.exit()
-
+    
 
     reg = SVR(tol=1e-4)
     # Set the space of hyper-parameters for tuning them
+    optimizer = 
     space = ESVR_SPACE
-
     # Define an objective function of hyper-parameters tuning
     @use_named_args(space)
     def objective(**params):
@@ -226,18 +234,18 @@ def esvr(root_path,station,optimizer='gp_minimize',n_calls=100):
     returned_results = load(model_path+'result.pkl')
 
     # Visualizing the results of hyper-parameaters tuning
-    plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_objective.png')
-    plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_evaluation.png')
-    plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.png')
+    plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
+    plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
+    plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
 
     # Plot the optimal hyperparameters
-    print('Best score=%.4f'%res.fun)
-    print(""" Best parameters:
+    logger.info('Best score=%.4f'%res.fun)
+    logger.info(""" Best parameters:
      -C = %.8f
      -epsilon = %.8f
      -gamma = %.8f
      """%(res.x[0],res.x[1],res.x[2]))
-    print('Time cost:{} seconds'.format(time_cost))
+    logger.info('Time cost:{} seconds'.format(time_cost))
 
     # Construct the optimal hyperparameters to restore them
     params_dict={
@@ -250,7 +258,7 @@ def esvr(root_path,station,optimizer='gp_minimize',n_calls=100):
 
     # Transform the optimal hyperparameters dict to pandas DataFrame and restore it
     params_df = pd.DataFrame(params_dict,index=[0])
-    params_df.to_csv(model_path +MODEL_NAME+'_optimized_params.csv')
+    params_df.to_csv(model_path +model_name+'_optimized_params.csv')
     
     # Initialize a SVR with the optimal hyperparameters
     esvr = SVR(C=res.x[0], epsilon=res.x[1], gamma=res.x[2])
@@ -266,8 +274,8 @@ def esvr(root_path,station,optimizer='gp_minimize',n_calls=100):
     norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
     sMin = norm_id['series_min'][norm_id.shape[0]-1]
     sMax = norm_id['series_max'][norm_id.shape[0]-1]
-    print('Series Min:\n {}'.format(sMin))
-    print('Series Max:\n {}'.format(sMax))
+    logger.debug('Series Min:\n {}'.format(sMin))
+    logger.debug('Series Max:\n {}'.format(sMax))
 
     # Renormalized the records and predictions and cap the negative predictions to 0
     train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
@@ -282,7 +290,7 @@ def esvr(root_path,station,optimizer='gp_minimize',n_calls=100):
 
 
     dum_pred_results(
-        path = model_path+MODEL_NAME+'.csv',
+        path = model_path+model_name+'.csv',
         train_y = train_y,
         train_predictions=train_predictions,
         dev_y = dev_y,
@@ -292,36 +300,36 @@ def esvr(root_path,station,optimizer='gp_minimize',n_calls=100):
         time_cost = time_cost,
         )
 
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +MODEL_NAME + '_train_pred.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +MODEL_NAME + "_dev_pred.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_pred.png")
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path+MODEL_NAME+"_test_error.png")
-    plt.show()
-    # Save figures in EPS for manuscript
-    plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_objective.eps',format='EPS',dpi=EPS_DPI)
-    plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_evaluation.eps',format='EPS',dpi=EPS_DPI)
-    plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.eps',format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +MODEL_NAME + '_train_pred.eps',format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +MODEL_NAME + "_dev_pred.eps",format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_pred.eps",format='EPS',dpi=EPS_DPI)
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path+MODEL_NAME+"_test_error.eps",format='EPS',dpi=EPS_DPI)
+    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +model_name + '_train_pred.png')
+    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +model_name + "_dev_pred.png")
+    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_pred.png")
+    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path+model_name+"_test_error.png")
+    plt.close('all')
+    
 
-def esvr_multi_seed(root_path,station,optimizer='gp_minimize',n_calls=100,iterations=10):
+def esvr_multi_seed(root_path,station,predict_pattern,optimizer='gp_minimize',n_calls=100,iterations=10):
     """
     """
+    logger.info("Build epsilon SVR with multiple seed...")
+    logger.info("Model information:")
+    logger.info("\tRoot path:{}".format(root_path))
+    logger.info("\tStation:{}".format(station))
+    logger.info("\tPredict pattern:{}".format(predict_pattern))
+    logger.info("\tOptimizer:{}".format(optimizer))
+    logger.info("\tNumber of calls:{}".format(n_calls))
+    
     # Set the time series and model parameters
-    STATION = station
-    PREDICTOR = 'esvr'
-    data_path = root_path + '/'+STATION+'/data/'
-    model_path = root_path+'/'+STATION+'/projects/'+PREDICTOR+'/'
+    predictor = 'esvr'
+    data_path = root_path + '/'+station+'/data/'+predict_pattern+'/'
+    model_path = root_path+'/'+station+'/projects/'+predictor+'/'+predict_pattern+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    print("Data Path:{}".format(data_path))
-    print("Model Path:{}".format(model_path))
+    logger.info("\tData Path:{}".format(data_path))
+    logger.info("\tModel Path:{}".format(model_path))
         
     for random_state in range(1,iterations+1):
-        MODEL_NAME = STATION+'_'+PREDICTOR+'_seed'+str(random_state)
-        print('Model Name:{}'.format(MODEL_NAME))
+        model_name = station+'_'+predictor+'_seed'+str(random_state)
+        logger.info('Model Name:{}'.format(model_name))
         # Load the training, development and testing samples
         train = pd.read_csv(data_path+'minmax_unsample_train.csv',index_col=False)
         dev = pd.read_csv(data_path+'minmax_unsample_dev.csv',index_col=False)
@@ -337,13 +345,13 @@ def esvr_multi_seed(root_path,station,optimizer='gp_minimize',n_calls=100,iterat
         test_x = test.drop('Y', axis=1)
         train_dev_y = train_dev['Y']
         train_dev_x = train_dev.drop('Y', axis=1)
-        print("Optimized params:{}".format(model_path +MODEL_NAME+'_optimized_params.csv'))
+        logger.info("Optimized params:{}".format(model_path +model_name+'_optimized_params.csv'))
 
-        if os.path.exists(model_path +MODEL_NAME+'_optimized_params.csv'):
-            optimal_params = pd.read_csv(model_path +MODEL_NAME+'_optimized_params.csv')
+        if os.path.exists(model_path +model_name+'_optimized_params.csv'):
+            optimal_params = pd.read_csv(model_path +model_name+'_optimized_params.csv')
             pre_n_calls = optimal_params['n_calls'][0]
             if pre_n_calls==n_calls:
-                print("The n_calls="+str(n_calls)+" was already tuned")
+                logger.info("The n_calls="+str(n_calls)+" was already tuned")
                 esvr = SVR(C=optimal_params['C'][0], epsilon=optimal_params['epsilon'][0], gamma=optimal_params['gamma'][0])
                 # Do prediction with the opyimal model
                 train_predictions = esvr.fit(train_dev_x,train_dev_y).predict(train_x)
@@ -355,8 +363,8 @@ def esvr_multi_seed(root_path,station,optimizer='gp_minimize',n_calls=100,iterat
                 norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
                 sMin = norm_id['series_min'][norm_id.shape[0]-1]
                 sMax = norm_id['series_max'][norm_id.shape[0]-1]
-                print('Series Min:\n {}'.format(sMin))
-                print('Series Max:\n {}'.format(sMax))
+                logger.debug('Series Min:\n {}'.format(sMin))
+                logger.debug('Series Max:\n {}'.format(sMax))
                 train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
                 dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
                 test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
@@ -367,7 +375,7 @@ def esvr_multi_seed(root_path,station,optimizer='gp_minimize',n_calls=100,iterat
                 test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
                 test_predictions[test_predictions<0.0]=0.0
                 dum_pred_results(
-                    path = model_path+MODEL_NAME+'.csv',
+                    path = model_path+model_name+'.csv',
                     train_y = train_y,
                     train_predictions=train_predictions,
                     dev_y = dev_y,
@@ -402,17 +410,17 @@ def esvr_multi_seed(root_path,station,optimizer='gp_minimize',n_calls=100,iterat
             dump(res,model_path+'result_seed'+str(random_state)+'.pkl',store_objective=False)
             returned_results = load(model_path+'result_seed'+str(random_state)+'.pkl')
             # Visualizing the results of hyper-parameaters tuning
-            plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_objective.png')
-            plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_evaluation.png')
-            plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.png')
+            plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
+            plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
+            plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
             # Plot the optimal hyperparameters
-            print('Best score=%.4f'%res.fun)
-            print(""" Best parameters:
+            logger.info('Best score=%.4f'%res.fun)
+            logger.info(""" Best parameters:
              -C = %.8f
              -epsilon = %.8f
              -gamma = %.8f
              """%(res.x[0],res.x[1],res.x[2]))
-            print('Time cost:{} seconds'.format(time_cost))
+            logger.inf('Time cost:{} seconds'.format(time_cost))
             # Construct the optimal hyperparameters to restore them
             params_dict={
                 'C':res.x[0],
@@ -423,7 +431,7 @@ def esvr_multi_seed(root_path,station,optimizer='gp_minimize',n_calls=100,iterat
             }
             # Transform the optimal hyperparameters dict to pandas DataFrame and restore it
             params_df = pd.DataFrame(params_dict,index=[0])
-            params_df.to_csv(model_path +MODEL_NAME+'_optimized_params.csv')
+            params_df.to_csv(model_path +model_name+'_optimized_params.csv')
             # Initialize a SVR with the optimal hyperparameters
             esvr = SVR(C=res.x[0], epsilon=res.x[1], gamma=res.x[2])
             # Do prediction with the opyimal model
@@ -436,8 +444,8 @@ def esvr_multi_seed(root_path,station,optimizer='gp_minimize',n_calls=100,iterat
             norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
             sMin = norm_id['series_min'][norm_id.shape[0]-1]
             sMax = norm_id['series_max'][norm_id.shape[0]-1]
-            print('Series Min:\n {}'.format(sMin))
-            print('Series Max:\n {}'.format(sMax))
+            logger.debug('Series Min:\n {}'.format(sMin))
+            logger.debug('Series Max:\n {}'.format(sMax))
             # Renormalized the records and predictions and cap the negative predictions to 0
             train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
             dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
@@ -449,7 +457,7 @@ def esvr_multi_seed(root_path,station,optimizer='gp_minimize',n_calls=100,iterat
             test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
             test_predictions[test_predictions<0.0]=0.0
             dum_pred_results(
-                path = model_path+MODEL_NAME+'.csv',
+                path = model_path+model_name+'.csv',
                 train_y = train_y,
                 train_predictions=train_predictions,
                 dev_y = dev_y,
@@ -458,30 +466,37 @@ def esvr_multi_seed(root_path,station,optimizer='gp_minimize',n_calls=100,iterat
                 test_predictions = test_predictions,
                 time_cost = time_cost,
                 )
-            plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +MODEL_NAME + '_train_pred.png')
-            plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +MODEL_NAME + "_dev_pred.png")
-            plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_pred.png")
-            plot_error_distribution(test_y,test_predictions,fig_savepath=model_path+MODEL_NAME+"_test_error.png")
+            plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +model_name + '_train_pred.png')
+            plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +model_name + "_dev_pred.png")
+            plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_pred.png")
+            plot_error_distribution(test_y,test_predictions,fig_savepath=model_path+model_name+"_test_error.png")
+    plt.close('all')
         
 
-def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_minimize',wavelet_level='db10-lev2',n_calls=100):
+def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_minimize',wavelet_level='db10-2',n_calls=100):
     # Set project parameters
-    STATION = station
-    DECOMPOSER = decomposer
-    PREDICTOR = 'esvr'
-    PREDICT_PATTERN = predict_pattern # hindcast or forecast or hindcast_with_pca_mle or forecast_with_pca_mle
-    SIGNALS = STATION+'_'+DECOMPOSER
-    if DECOMPOSER == 'wd':
-        data_path = root_path + '/'+SIGNALS+'/data/'+wavelet_level+'/'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+wavelet_level+'/'+PREDICT_PATTERN+'/'
+    logger.info('Build one-step epsilon SVR model...')
+    logger.info('Model information:')
+    logger.info('\tRoot path:{}'.format(root_path))
+    logger.info('\tStation:{}'.format(station))
+    logger.info('\tDecomposer:{}'.format(decomposer))
+    logger.info('\tPredict pattern:{}'.format(predict_pattern))
+    logger.info('\tOptimizer:{}'.format(optimizer))
+    logger.info('\tMonther wavelet and decomposition level of WA:{}'.format(wavelet_level))
+    logger.info('\tNumber of calls:{}'.format(n_calls))
+    predictor = 'esvr'
+    signals = station+'_'+decomposer
+    if decomposer == 'dwt' or decomposer=='modwt':
+        data_path = root_path + '/'+signals+'/data/'+wavelet_level+'/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+wavelet_level+'/'+predict_pattern+'/history/'
     else:
-        data_path = root_path + '/'+SIGNALS+'/data/'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+PREDICT_PATTERN+'/'
+        data_path = root_path + '/'+signals+'/data/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    MODEL_NAME = STATION+'_'+DECOMPOSER+'_'+PREDICTOR+'_'+PREDICT_PATTERN
-    print("Data Path:{}".format(data_path))
-    print("Model Path:{}".format(model_path))
+    model_name = station+'_'+decomposer+'_'+predictor+'_'+predict_pattern
+    logger.info("\tData Path:{}".format(data_path))
+    logger.info("\tModel Path:{}".format(model_path))
 
     # load data
     train = pd.read_csv(data_path+'minmax_unsample_train.csv')
@@ -498,11 +513,11 @@ def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_min
     test_x = test.drop('Y', axis=1)
     train_dev_y = train_dev['Y']
     train_dev_x = train_dev.drop('Y', axis=1)
-    if os.path.exists(model_path + MODEL_NAME+'_optimized_params.csv'):
-        optimal_params = pd.read_csv(model_path + MODEL_NAME+'_optimized_params.csv')
+    if os.path.exists(model_path + model_name+'_optimized_params.csv'):
+        optimal_params = pd.read_csv(model_path + model_name+'_optimized_params.csv')
         pre_n_calls = optimal_params['n_calls'][0]
         if pre_n_calls==n_calls:
-            print("The n_calls="+str(n_calls)+" was already tuned")
+            logger.info("The n_calls="+str(n_calls)+" was already tuned")
             esvr = SVR(C=optimal_params['C'][0], epsilon=optimal_params['epsilon'][0], gamma=optimal_params['gamma'][0])
             # Do prediction with the opyimal model
             train_predictions = esvr.fit(train_dev_x,train_dev_y).predict(train_x)
@@ -514,8 +529,8 @@ def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_min
             norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
             sMin = norm_id['series_min'][norm_id.shape[0]-1]
             sMax = norm_id['series_max'][norm_id.shape[0]-1]
-            print('Series Min:\n {}'.format(sMin))
-            print('Series Max:\n {}'.format(sMax))
+            logger.debug('Series Min:\n {}'.format(sMin))
+            logger.debug('Series Max:\n {}'.format(sMax))
             # Renormalized the records and predictions
             train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
             dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
@@ -527,7 +542,7 @@ def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_min
             test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
             test_predictions[test_predictions<0.0]=0.0
             dum_pred_results(
-                path = model_path+MODEL_NAME+'.csv',
+                path = model_path+model_name+'.csv',
                 train_y = train_y,
                 train_predictions=train_predictions,
                 dev_y = dev_y,
@@ -548,7 +563,7 @@ def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_min
         reg.set_params(**params)
         return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
 
-    #checkpoint_saver = CheckpointSaver(model_path+MODEL_NAME+'/checkpoint.pkl',compress=9)
+    #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
 
     start = time.process_time()
     if optimizer=='gp_minimize':
@@ -564,18 +579,18 @@ def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_min
     dump(res,model_path+'result.pkl',store_objective=False)
     returned_results = load(model_path+'result.pkl')
     
-    plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_objective.png')
-    plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_evaluation.png')
-    plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.png')
+    plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
+    plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
+    plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
     
-    print('Best score=%.4f'%res.fun)
-    print(""" Best parameters:
+    logger.info('Best score=%.4f'%res.fun)
+    logger.info(""" Best parameters:
      -C = %.8f
      -epsilon = %.8f
      -gamma = %.8f
      """%(res.x[0],res.x[1],res.x[2]))
 
-    print('Time cost:{}'.format(time_cost))
+    logger.info('Time cost:{}'.format(time_cost))
     params_dict={
         'C':res.x[0],
         'epsilon':res.x[1],
@@ -585,7 +600,7 @@ def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_min
     }
 
     params_df = pd.DataFrame(params_dict,index=[0])
-    params_df.to_csv(model_path + MODEL_NAME+'_optimized_params.csv')
+    params_df.to_csv(model_path + model_name+'_optimized_params.csv')
 
     esvr = SVR(C=res.x[0], epsilon=res.x[1], gamma=res.x[2])
     # Do prediction with the opyimal model
@@ -600,8 +615,8 @@ def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_min
     norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
     sMin = norm_id['series_min'][norm_id.shape[0]-1]
     sMax = norm_id['series_max'][norm_id.shape[0]-1]
-    print('Series Min:\n {}'.format(sMin))
-    print('Series Max:\n {}'.format(sMax))
+    logger.debug('Series Min:\n {}'.format(sMin))
+    logger.debug('Series Max:\n {}'.format(sMax))
 
     # Renormalized the records and predictions
     train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
@@ -614,10 +629,8 @@ def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_min
     test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
     test_predictions[test_predictions<0.0]=0.0
 
-
-
     dum_pred_results(
-        path = model_path+MODEL_NAME+'.csv',
+        path = model_path+model_name+'.csv',
         train_y = train_y,
         train_predictions=train_predictions,
         dev_y = dev_y,
@@ -626,41 +639,41 @@ def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp_min
         test_predictions = test_predictions,
         time_cost=time_cost)
 
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +MODEL_NAME + '_train_pred.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +MODEL_NAME + "_dev_pred.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_pred.png")
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_error.png")
-    plt.show()
+    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +model_name + '_train_pred.png')
+    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +model_name + "_dev_pred.png")
+    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_pred.png")
+    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_error.png")
+    plt.close('all')
     
-    plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_objective.eps',format='EPS',dpi=EPS_DPI)
-    plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_evaluation.eps',format='EPS',dpi=EPS_DPI)
-    plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.eps',format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +MODEL_NAME + '_train_pred.eps',format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +MODEL_NAME + "_dev_pred.eps",format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_pred.eps",format='EPS',dpi=EPS_DPI)
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_error.eps",format='EPS',dpi=EPS_DPI)
 
-def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimizer='gp_minimize',wavelet_level='db10-lev2',n_calls=100,iterations=10):
+def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimizer='gp_minimize',wavelet_level='db10-2',n_calls=100,iterations=10):
     # Set project parameters
-    STATION = station
-    DECOMPOSER = decomposer
-    PREDICTOR = 'esvr'
-    PREDICT_PATTERN = predict_pattern # hindcast or forecast or hindcast_with_pca_mle or forecast_with_pca_mle
-    SIGNALS = STATION+'_'+DECOMPOSER
-    if DECOMPOSER == 'wd':
-        data_path = root_path + '/'+SIGNALS+'/data/'+wavelet_level+'/'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+wavelet_level+'/'+PREDICT_PATTERN+'/'
+    logger.info('Build one-step epsilon SVR model with multiple seed...')
+    logger.info('Model information:')
+    logger.info('\tRoot path:{}'.format(root_path))
+    logger.info('\tStation:{}'.format(station))
+    logger.info('\tDecomposer:{}'.format(decomposer))
+    logger.info('\tPredict pattern:{}'.format(predict_pattern))
+    logger.info('\tOptimizer:{}'.format(optimizer))
+    logger.info('\tMonther wavelet and decomposition level of WA:{}'.format(wavelet_level))
+    logger.info('\tNumber of calls:{}'.format(n_calls))
+    logger.info('\tSeed iterations:{}'.format(iterations))
+    predictor = 'esvr'
+    signals = station+'_'+decomposer
+    if decomposer == 'dwt' or decomposer=='modwt':
+        data_path = root_path + '/'+signals+'/data/'+wavelet_level+'/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+wavelet_level+'/'+predict_pattern+'/history/'
     else:
-        data_path = root_path + '/'+SIGNALS+'/data/'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+PREDICT_PATTERN+'/'
+        data_path = root_path + '/'+signals+'/data/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    print("Data Path:{}".format(data_path))
-    print("Model Path:{}".format(model_path))
+    logger.info("\tData Path:{}".format(data_path))
+    logger.info("\tModel Path:{}".format(model_path))
 
     for random_state in range(1,iterations+1):
-        MODEL_NAME = STATION+'_'+DECOMPOSER+'_'+PREDICTOR+'_'+PREDICT_PATTERN+'_seed'+str(random_state)
-        print('Model Name:{}'.format(MODEL_NAME))
+        model_name = station+'_'+decomposer+'_'+predictor+'_'+predict_pattern+'_seed'+str(random_state)
+        logger.info('Model Name:{}'.format(model_name))
         # load data
         train = pd.read_csv(data_path+'minmax_unsample_train.csv')
         dev = pd.read_csv(data_path+'minmax_unsample_dev.csv')
@@ -676,12 +689,12 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
         test_x = test.drop('Y', axis=1)
         train_dev_y = train_dev['Y']
         train_dev_x = train_dev.drop('Y', axis=1)
-        print("Optimized params:{}".format(model_path +MODEL_NAME+'_optimized_params.csv'))
-        if os.path.exists(model_path + MODEL_NAME+'_optimized_params.csv'):
-            optimal_params = pd.read_csv(model_path + MODEL_NAME+'_optimized_params.csv')
+        logger.info("Optimized params:{}".format(model_path +model_name+'_optimized_params.csv'))
+        if os.path.exists(model_path + model_name+'_optimized_params.csv'):
+            optimal_params = pd.read_csv(model_path + model_name+'_optimized_params.csv')
             pre_n_calls = optimal_params['n_calls'][0]
             if pre_n_calls==n_calls:
-                print("The n_calls="+str(n_calls)+" was already tuned")
+                logger.info("The n_calls="+str(n_calls)+" was already tuned")
                 esvr = SVR(C=optimal_params['C'][0], epsilon=optimal_params['epsilon'][0], gamma=optimal_params['gamma'][0])
                 # Do prediction with the opyimal model
                 train_predictions = esvr.fit(train_dev_x,train_dev_y).predict(train_x)
@@ -693,8 +706,8 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
                 norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
                 sMin = norm_id['series_min'][norm_id.shape[0]-1]
                 sMax = norm_id['series_max'][norm_id.shape[0]-1]
-                print('Series Min:\n {}'.format(sMin))
-                print('Series Max:\n {}'.format(sMax))
+                logger.debug('Series Min:\n {}'.format(sMin))
+                logger.debug('Series Max:\n {}'.format(sMax))
                 train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
                 dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
                 test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
@@ -705,7 +718,7 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
                 test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
                 test_predictions[test_predictions<0.0]=0.0
                 dum_pred_results(
-                    path = model_path+MODEL_NAME+'.csv',
+                    path = model_path+model_name+'.csv',
                     train_y = train_y,
                     train_predictions=train_predictions,
                     dev_y = dev_y,
@@ -725,7 +738,7 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
                 reg.set_params(**params)
                 return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
 
-            #checkpoint_saver = CheckpointSaver(model_path+MODEL_NAME+'/checkpoint.pkl',compress=9)
+            #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
 
             start = time.process_time()
             if optimizer=='gp_minimize':
@@ -741,18 +754,18 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
             dump(res,model_path+'result_seed'+str(random_state)+'.pkl',store_objective=False)
             returned_results = load(model_path+'result_seed'+str(random_state)+'.pkl')
 
-            plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_objective.png')
-            plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_evaluation.png')
-            plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.png')
+            plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
+            plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
+            plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
 
-            print('Best score=%.4f'%res.fun)
-            print(""" Best parameters:
+            logger.info('Best score=%.4f'%res.fun)
+            logger.info(""" Best parameters:
              -C = %.8f
              -epsilon = %.8f
              -gamma = %.8f
              """%(res.x[0],res.x[1],res.x[2]))
 
-            print('Time cost:{}'.format(time_cost))
+            logger.info('Time cost:{}'.format(time_cost))
             params_dict={
                 'C':res.x[0],
                 'epsilon':res.x[1],
@@ -762,7 +775,7 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
             }
 
             params_df = pd.DataFrame(params_dict,index=[0])
-            params_df.to_csv(model_path + MODEL_NAME+'_optimized_params.csv')
+            params_df.to_csv(model_path + model_name+'_optimized_params.csv')
 
             esvr = SVR(C=res.x[0], epsilon=res.x[1], gamma=res.x[2])
             # Do prediction with the opyimal model
@@ -777,8 +790,8 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
             norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
             sMin = norm_id['series_min'][norm_id.shape[0]-1]
             sMax = norm_id['series_max'][norm_id.shape[0]-1]
-            print('Series Min:\n {}'.format(sMin))
-            print('Series Max:\n {}'.format(sMax))
+            logger.debug('Series Min:\n {}'.format(sMin))
+            logger.debug('Series Max:\n {}'.format(sMax))
 
             # Renormalized the records and predictions
             train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
@@ -791,7 +804,7 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
             test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
             test_predictions[test_predictions<0.0]=0.0
             dum_pred_results(
-                path = model_path+MODEL_NAME+'.csv',
+                path = model_path+model_name+'.csv',
                 train_y = train_y,
                 train_predictions=train_predictions,
                 dev_y = dev_y,
@@ -799,38 +812,46 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
                 test_y = test_y,
                 test_predictions = test_predictions,
                 time_cost=time_cost)
-            plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +MODEL_NAME + '_train_pred.png')
-            plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +MODEL_NAME + "_dev_pred.png")
-            plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_pred.png")
-            plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_error.png")
-            # plt.show()
+            plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +model_name + '_train_pred.png')
+            plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +model_name + "_dev_pred.png")
+            plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_pred.png")
+            plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_error.png")
+    plt.close('all')
+            
 
         
 
-def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp_minimize',wavelet_level='db10-lev2',n_calls=100):
-
+def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp_minimize',wavelet_level='db10-2',n_calls=100):
+    
+    logger.info('Build multi-step epsilon SVR model...')
+    logger.info('Model information:')
+    logger.info('\tRoot path:{}'.format(root_path))
+    logger.info('\tStation:{}'.format(station))
+    logger.info('\tDecomposer:{}'.format(decomposer))
+    logger.info('\tPredict pattern:{}'.format(predict_pattern))
+    logger.info('\tLags:{}'.format(Lags))
+    logger.info('\tModel index:{}'.format(model_id))
+    logger.info('\tOptimizer:{}'.format(optimizer))
+    logger.info('\tMother wavelet and decomposition level of WA:{}'.format(wavelet_level))
+    logger.info('\tNumber of calls:{}'.format(n_calls))
     if model_id>len(lags):
         raise Exception("The model id exceed the number of sub-signals")
-    STATION = station
-    DECOMPOSER = decomposer
-    PREDICTOR = 'esvr'
-    PREDICT_PATTERN = predict_pattern # hindcast or forecast
-    SIGNALS = STATION+'_'+DECOMPOSER
-    MODEL_ID = model_id
-    if DECOMPOSER=='wd':
-        data_path = root_path + '/'+SIGNALS+'/data/'+wavelet_level+'/'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+wavelet_level+'/'+PREDICT_PATTERN+'/imf'+str(MODEL_ID)+'/'
+    predictor = 'esvr'
+    signals = station+'_'+decomposer
+    if decomposer=='dwt' or decomposer=='modwt':
+        data_path = root_path + '/'+signals+'/data/'+wavelet_level+'/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+wavelet_level+'/'+predict_pattern+'/s'+str(model_id)+'/history/'
     else:
-        data_path = root_path + '/'+SIGNALS+'/data/'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+PREDICT_PATTERN+'/imf'+str(MODEL_ID)+'/'
+        data_path = root_path + '/'+signals+'/data/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/s'+str(model_id)+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    MODEL_NAME = STATION+'_'+DECOMPOSER+'_'+PREDICTOR+'_'+PREDICT_PATTERN+'_imf'+str(MODEL_ID)
-    print("Data Path:{}".format(data_path))
-    print("Model Path:{}".format(model_path))
-    train = pd.read_csv(data_path+'minmax_unsample_train_imf'+str(MODEL_ID)+'.csv')
-    dev = pd.read_csv(data_path+'minmax_unsample_dev_imf'+str(MODEL_ID)+'.csv')
-    test = pd.read_csv(data_path+'minmax_unsample_test_imf'+str(MODEL_ID)+'.csv')
+    model_name = station+'_'+decomposer+'_'+predictor+'_'+predict_pattern+'s'+str(model_id)
+    logger.info("Data Path:{}".format(data_path))
+    logger.info("Model Path:{}".format(model_path))
+    train = pd.read_csv(data_path+'minmax_unsample_train_s'+str(model_id)+'.csv')
+    dev = pd.read_csv(data_path+'minmax_unsample_dev_s'+str(model_id)+'.csv')
+    test = pd.read_csv(data_path+'minmax_unsample_test_s'+str(model_id)+'.csv')
     train_dev = pd.concat([train,dev],axis=0)
     # shuffle
     train_dev = train_dev.sample(frac=1)
@@ -842,12 +863,12 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
     test_x = test.drop('Y', axis=1)
     train_dev_y = train_dev['Y']
     train_dev_x = train_dev.drop('Y', axis=1)
-    print("Optimized params:{}".format(model_path + MODEL_NAME +'_optimized_params_imf' + str(MODEL_ID) +'.csv'))
-    if os.path.exists(model_path + MODEL_NAME +'_optimized_params_imf' + str(MODEL_ID) +'.csv'):
-        optimal_params = pd.read_csv(model_path + MODEL_NAME +'_optimized_params_imf' + str(MODEL_ID) +'.csv')
+    logger.info("Optimized params:{}".format(model_path + model_name +'_optimized_params_s' + str(model_id) +'.csv'))
+    if os.path.exists(model_path + model_name +'_optimized_params_s' + str(model_id) +'.csv'):
+        optimal_params = pd.read_csv(model_path + model_name +'_optimized_params_s' + str(model_id) +'.csv')
         pre_n_calls = optimal_params['n_calls'][0]
         if pre_n_calls==n_calls:
-            print("The n_calls="+str(n_calls)+" was already tuned")
+            logger.info("The n_calls="+str(n_calls)+" was already tuned")
             esvr = SVR(C=optimal_params['C'][0], epsilon=optimal_params['epsilon'][0], gamma=optimal_params['gamma'][0])
             # Do prediction with the opyimal model
             train_predictions = esvr.fit(train_dev_x,train_dev_y).predict(train_x)
@@ -856,11 +877,11 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
             train_y=(train_y.values).flatten()
             dev_y=(dev_y.values).flatten()
             test_y=(test_y.values).flatten()
-            norm_id = pd.read_csv(data_path + 'norm_unsample_id_imf'+str(MODEL_ID)+'.csv')
+            norm_id = pd.read_csv(data_path + 'norm_unsample_id_s'+str(model_id)+'.csv')
             sMin = norm_id['series_min'][norm_id.shape[0]-1]
             sMax = norm_id['series_max'][norm_id.shape[0]-1]
-            print('Series Min:\n {}'.format(sMin))
-            print('Series Max:\n {}'.format(sMax))
+            logger.debug('Series Min:\n {}'.format(sMin))
+            logger.debug('Series Max:\n {}'.format(sMax))
             # Renormalized the records and predictions
             train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
             dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
@@ -869,7 +890,7 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
             dev_predictions = np.multiply(dev_predictions + 1, sMax -sMin) / 2 + sMin
             test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
             dum_pred_results(
-                path = model_path+MODEL_NAME+'.csv',
+                path = model_path+model_name+'.csv',
                 train_y = train_y,
                 train_predictions=train_predictions,
                 dev_y = dev_y,
@@ -889,7 +910,7 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
             reg.set_params(**params)
             return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
     
-        #checkpoint_saver = CheckpointSaver(model_path+MODEL_NAME+'/checkpoint.pkl',compress=9)
+        #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
     
         start = time.process_time()
         if optimizer=='gp_minimize':
@@ -905,19 +926,19 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
         dump(res,model_path+'result.pkl',store_objective=False)
         returned_results = load(model_path+'result.pkl')
     
-        plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_objective.png')
-        plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_evaluation.png')
-        plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.png')
+        plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
+        plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
+        plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
         
         
-        print('Best score=%.4f'%res.fun)
-        print(""" Best parameters:
+        logger.info('Best score=%.4f'%res.fun)
+        logger.info(""" Best parameters:
          -C = %.8f
          -epsilon = %.8f
          -gamma = %.8f
          """%(res.x[0],res.x[1],res.x[2]))
     
-        print('Time cost:{}'.format(time_cost))
+        logger.info('Time cost:{}'.format(time_cost))
         params_dict={
             'C':res.x[0],
             'epsilon':res.x[1],
@@ -927,7 +948,7 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
         }
     
         params_df = pd.DataFrame(params_dict,index=[0])
-        params_df.to_csv(model_path + MODEL_NAME +'_optimized_params_imf' + str(MODEL_ID) +'.csv')
+        params_df.to_csv(model_path + model_name +'_optimized_params_s' + str(model_id) +'.csv')
     
         esvr = SVR(C=res.x[0], epsilon=res.x[1], gamma=res.x[2])
         # Do prediction with the opyimal model
@@ -939,11 +960,11 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
         dev_y=(dev_y.values).flatten()
         test_y=(test_y.values).flatten()
     
-        norm_id = pd.read_csv(data_path + 'norm_unsample_id_imf' + str(MODEL_ID) + '.csv')
+        norm_id = pd.read_csv(data_path + 'norm_unsample_id_s' + str(model_id) + '.csv')
         sMin = norm_id['series_min'][norm_id.shape[0]-1]
         sMax = norm_id['series_max'][norm_id.shape[0]-1]
-        print('Series Min:\n {}'.format(sMin))
-        print('Series Max:\n {}'.format(sMax))
+        logger.debug('Series Min:\n {}'.format(sMin))
+        logger.debug('Series Max:\n {}'.format(sMax))
     
         # Renormalized the records and predictions
         train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
@@ -955,7 +976,7 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
     
     
         dum_pred_results(
-            path = model_path+MODEL_NAME+'.csv',
+            path = model_path+model_name+'.csv',
             train_y = train_y,
             train_predictions=train_predictions,
             dev_y = dev_y,
@@ -964,47 +985,45 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
             test_predictions = test_predictions,
             time_cost=time_cost)
     
-        plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + MODEL_NAME + '_train_pred.png')
-        plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + MODEL_NAME + "_dev_pred.png")
-        plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_pred.png")
-        plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_error.png",)
-        plt.show()
-        plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_objective.eps',format='EPS',dpi=EPS_DPI)
-        plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_evaluation.eps',format='EPS',dpi=EPS_DPI)
-        plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.eps',format='EPS',dpi=EPS_DPI)
-        plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + MODEL_NAME + '_train_pred.eps',format='EPS',dpi=EPS_DPI)
-        plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + MODEL_NAME + "_dev_pred.eps",format='EPS',dpi=EPS_DPI)
-        plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_pred.eps",format='EPS',dpi=EPS_DPI)
-        plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_error.eps",format='EPS',dpi=EPS_DPI)
+        plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + model_name + '_train_pred.png')
+        plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + model_name + "_dev_pred.png")
+        plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_pred.png")
+        plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_error.png",)
+    plt.close('all')
+        
 
 
-def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp_minimize',wavelet_level='db10-lev2',n_calls=100,iterations=10):
+def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp_minimize',wavelet_level='db10-2',n_calls=100,iterations=10):
+    logger.info('Roo path:{}'.format(root_path))
+    logger.info('Station:{}'.format(station))
+    logger.info('Decomposer:{}'.format(decomposer))
+    logger.info('Predict pattern:{}'.format(predict_pattern))
+    logger.info('Lags:{}'.format(lags))
+    logger.info('Model index:{}'.format(model_id))
+    logger.info('Optimizer:{}'.format(optimizer))
 
     if model_id>len(lags):
         raise Exception("The model id exceed the number of sub-signals")
-    STATION = station
-    DECOMPOSER = decomposer
-    PREDICTOR = 'esvr'
-    PREDICT_PATTERN = predict_pattern # hindcast or forecast
-    SIGNALS = STATION+'_'+DECOMPOSER
-    MODEL_ID = model_id
-    if DECOMPOSER=='wd':
-        data_path = root_path + '/'+SIGNALS+'/data/'+wavelet_level+'/'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+wavelet_level+'/'+PREDICT_PATTERN+'/imf'+str(MODEL_ID)+'/'
+   
+    predictor = 'esvr'
+    signals = station+'_'+decomposer
+    if decomposer=='dwt' or decomposer=='modwt':
+        data_path = root_path + '/'+signals+'/data/'+wavelet_level+'/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+wavelet_level+'/'+predict_pattern+'/s'+str(model_id)+'/history/'
     else:
-        data_path = root_path + '/'+SIGNALS+'/data/'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+PREDICT_PATTERN+'/imf'+str(MODEL_ID)+'/'
+        data_path = root_path + '/'+signals+'/data/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/s'+str(model_id)+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
 
     for random_state in range(1,iterations+1):
-        MODEL_NAME = STATION+'_'+DECOMPOSER+'_'+PREDICTOR+'_'+PREDICT_PATTERN+'_imf'+str(MODEL_ID)+'_seed'+str(random_state)
-        print("Data Path:{}".format(data_path))
-        print("Model Path:{}".format(model_path))
+        model_name = station+'_'+decomposer+'_'+predictor+'_'+predict_pattern+'_s'+str(model_id)+'_seed'+str(random_state)
+        logger.info("Data Path:{}".format(data_path))
+        logger.info("Model Path:{}".format(model_path))
 
-        train = pd.read_csv(data_path+'minmax_unsample_train_imf'+str(MODEL_ID)+'.csv')
-        dev = pd.read_csv(data_path+'minmax_unsample_dev_imf'+str(MODEL_ID)+'.csv')
-        test = pd.read_csv(data_path+'minmax_unsample_test_imf'+str(MODEL_ID)+'.csv')
+        train = pd.read_csv(data_path+'minmax_unsample_train_s'+str(model_id)+'.csv')
+        dev = pd.read_csv(data_path+'minmax_unsample_dev_s'+str(model_id)+'.csv')
+        test = pd.read_csv(data_path+'minmax_unsample_test_s'+str(model_id)+'.csv')
         train_dev = pd.concat([train,dev],axis=0)
         # shuffle
         train_dev = train_dev.sample(frac=1)
@@ -1016,12 +1035,12 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
         test_x = test.drop('Y', axis=1)
         train_dev_y = train_dev['Y']
         train_dev_x = train_dev.drop('Y', axis=1)
-        print("Optimized params:{}".format(model_path + MODEL_NAME +'_optimized_params_imf' + str(MODEL_ID) +'.csv'))
-        if os.path.exists(model_path + MODEL_NAME +'_optimized_params_imf' + str(MODEL_ID) +'.csv'):
-            optimal_params = pd.read_csv(model_path + MODEL_NAME +'_optimized_params_imf' + str(MODEL_ID) +'.csv')
+        logger.info("Optimized params:{}".format(model_path + model_name +'_optimized_params_s' + str(model_id) +'.csv'))
+        if os.path.exists(model_path + model_name +'_optimized_params_s' + str(model_id) +'.csv'):
+            optimal_params = pd.read_csv(model_path + model_name +'_optimized_params_s' + str(model_id) +'.csv')
             pre_n_calls = optimal_params['n_calls'][0]
             if pre_n_calls==n_calls:
-                print("The n_calls="+str(n_calls)+" was already tuned")
+                logger.info("The n_calls="+str(n_calls)+" was already tuned")
                 esvr = SVR(C=optimal_params['C'][0], epsilon=optimal_params['epsilon'][0], gamma=optimal_params['gamma'][0])
                 # Do prediction with the opyimal model
                 train_predictions = esvr.fit(train_dev_x,train_dev_y).predict(train_x)
@@ -1030,11 +1049,11 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
                 train_y=(train_y.values).flatten()
                 dev_y=(dev_y.values).flatten()
                 test_y=(test_y.values).flatten()
-                norm_id = pd.read_csv(data_path + 'norm_unsample_id_imf'+str(MODEL_ID)+'.csv')
+                norm_id = pd.read_csv(data_path + 'norm_unsample_id_s'+str(model_id)+'.csv')
                 sMin = norm_id['series_min'][norm_id.shape[0]-1]
                 sMax = norm_id['series_max'][norm_id.shape[0]-1]
-                print('Series Min:\n {}'.format(sMin))
-                print('Series Max:\n {}'.format(sMax))
+                logger.debug('Series Min:\n {}'.format(sMin))
+                logger.debug('Series Max:\n {}'.format(sMax))
                 # Renormalized the records and predictions
                 train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
                 dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
@@ -1043,7 +1062,7 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
                 dev_predictions = np.multiply(dev_predictions + 1, sMax -sMin) / 2 + sMin
                 test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
                 dum_pred_results(
-                    path = model_path+MODEL_NAME+'.csv',
+                    path = model_path+model_name+'.csv',
                     train_y = train_y,
                     train_predictions=train_predictions,
                     dev_y = dev_y,
@@ -1063,7 +1082,7 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
                 reg.set_params(**params)
                 return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
 
-            #checkpoint_saver = CheckpointSaver(model_path+MODEL_NAME+'/checkpoint.pkl',compress=9)
+            #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
 
             start = time.process_time()
             if optimizer=='gp_minimize':
@@ -1079,19 +1098,19 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
             dump(res,model_path+'result_seed'+str(random_state)+'.pkl',store_objective=False)
             returned_results = load(model_path+'result_seed'+str(random_state)+'.pkl')
             
-            plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_objective.png')
-            plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_evaluation.png')
-            plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.png')
+            plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_objective.png')
+            plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+model_name+'_evaluation.png')
+            plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
 
 
-            print('Best score=%.4f'%res.fun)
-            print(""" Best parameters:
+            logger.info('Best score=%.4f'%res.fun)
+            logger.info(""" Best parameters:
              -C = %.8f
              -epsilon = %.8f
              -gamma = %.8f
              """%(res.x[0],res.x[1],res.x[2]))
 
-            print('Time cost:{}'.format(time_cost))
+            logger.info('Time cost:{}'.format(time_cost))
             params_dict={
                 'C':res.x[0],
                 'epsilon':res.x[1],
@@ -1101,7 +1120,7 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
             }
 
             params_df = pd.DataFrame(params_dict,index=[0])
-            params_df.to_csv(model_path + MODEL_NAME +'_optimized_params_imf' + str(MODEL_ID) +'.csv')
+            params_df.to_csv(model_path + model_name +'_optimized_params_s' + str(model_id) +'.csv')
 
             esvr = SVR(C=res.x[0], epsilon=res.x[1], gamma=res.x[2])
             # Do prediction with the opyimal model
@@ -1113,11 +1132,11 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
             dev_y=(dev_y.values).flatten()
             test_y=(test_y.values).flatten()
 
-            norm_id = pd.read_csv(data_path + 'norm_unsample_id_imf' + str(MODEL_ID) + '.csv')
+            norm_id = pd.read_csv(data_path + 'norm_unsample_id_s' + str(model_id) + '.csv')
             sMin = norm_id['series_min'][norm_id.shape[0]-1]
             sMax = norm_id['series_max'][norm_id.shape[0]-1]
-            print('Series Min:\n {}'.format(sMin))
-            print('Series Max:\n {}'.format(sMax))
+            logger.debug('Series Min:\n {}'.format(sMin))
+            logger.debug('Series Max:\n {}'.format(sMax))
 
             # Renormalized the records and predictions
             train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
@@ -1129,7 +1148,7 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
 
 
             dum_pred_results(
-                path = model_path+MODEL_NAME+'.csv',
+                path = model_path+model_name+'.csv',
                 train_y = train_y,
                 train_predictions=train_predictions,
                 dev_y = dev_y,
@@ -1138,40 +1157,35 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
                 test_predictions = test_predictions,
                 time_cost=time_cost)
 
-            plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + MODEL_NAME + '_train_pred.png')
-            plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + MODEL_NAME + "_dev_pred.png")
-            plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_pred.png")
-            plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_error.png",)
-            plt.show()
-            plot_objective_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_objective.eps',format='EPS',dpi=EPS_DPI)
-            plot_evaluations_(res,dimensions=DIMENSION_ESVR,fig_savepath=model_path+MODEL_NAME+'_evaluation.eps',format='EPS',dpi=EPS_DPI)
-            plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.eps',format='EPS',dpi=EPS_DPI)
-            plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + MODEL_NAME + '_train_pred.eps',format='EPS',dpi=EPS_DPI)
-            plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + MODEL_NAME + "_dev_pred.eps",format='EPS',dpi=EPS_DPI)
-            plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_pred.eps",format='EPS',dpi=EPS_DPI)
-            plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_error.eps",format='EPS',dpi=EPS_DPI)
+            plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + model_name + '_train_pred.png')
+            plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + model_name + "_dev_pred.png")
+            plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_pred.png")
+            plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_error.png",)
+    plt.close('all')          
 
 
-def gbrt(root_path,station,optimizer='gp_minimize',n_calls=100):
-    """
-    """
-    STATION = station
-    PREDICTOR = 'gbrt'
-    data_path = root_path + '/'+STATION+'/data/'
-    model_path = root_path+'/'+STATION+'/projects/'+PREDICTOR+'/'
+def gbrt(root_path,station,predict_pattern,optimizer='gp_minimize',n_calls=100):
+    logger.info('Root path:{}'.format(root_path))
+    logger.info('Station:{}'.format(station))
+    logger.info('Predict pattern:{}'.format(predict_pattern))
+    logger.info('Optimizer:{}'.format(optimizer))
+    logger.info('Number of calls:{}'.format(n_calls))
+    predictor = 'gbrt'
+    data_path = root_path + '/'+station+'/data/'
+    model_path = root_path+'/'+station+'/projects/'+predictor+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    MODEL_NAME = STATION+'_'+PREDICTOR
+    model_name = station+'_'+predictor
 
-    print("Data Path:{}".format(data_path))
-    print("Model Path:{}".format(model_path))
+    logger.info("Data Path:{}".format(data_path))
+    logger.info("Model Path:{}".format(model_path))
 
     
-    if os.path.exists(model_path +MODEL_NAME+'_optimized_params.csv'):
-        optimal_params = pd.read_csv(model_path +MODEL_NAME+'_optimized_params.csv')
+    if os.path.exists(model_path +model_name+'_optimized_params.csv'):
+        optimal_params = pd.read_csv(model_path +model_name+'_optimized_params.csv')
         pre_n_calls = optimal_params['n_calls'][0]
         if pre_n_calls==n_calls:
-            print("The n_calls="+str(n_calls)+" was already tuned")
+            logger.info("The n_calls="+str(n_calls)+" was already tuned")
             sys.exit()
 
     # load data
@@ -1211,7 +1225,7 @@ def gbrt(root_path,station,optimizer='gp_minimize',n_calls=100):
         reg.set_params(**params)
         return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
 
-    #checkpoint_saver = CheckpointSaver(model_path+MODEL_NAME+'/checkpoint.pkl',compress=9)
+    #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
 
     start = time.process_time()
     if optimizer=='gp_minimize':
@@ -1227,13 +1241,13 @@ def gbrt(root_path,station,optimizer='gp_minimize',n_calls=100):
     dump(res,model_path+'result.pkl',store_objective=False)
     returned_results = load(model_path+'result.pkl')
     
-    plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+MODEL_NAME+'_objective.png')
-    plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+MODEL_NAME+'_evaluation.png')
-    plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.png')
+    plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_objective.png')
+    plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_evaluation.png')
+    plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
     
 
-    print('Best score=%.4f'%res.fun)
-    print("""Best parameters:
+    logger.info('Best score=%.4f'%res.fun)
+    logger.info("""Best parameters:
     - max_depth=%d
     - learning_rate=%.6f
     - max_features=%d
@@ -1241,7 +1255,7 @@ def gbrt(root_path,station,optimizer='gp_minimize',n_calls=100):
     - min_samples_leaf=%d""" % (res.x[0], res.x[1], res.x[2], res.x[3],
                                 res.x[4]))
     # end=datetime.datetime.now()
-    print('Time cost:{}'.format(time_cost))
+    logger.info('Time cost:{}'.format(time_cost))
 
     params_dict={
         'max_depth':res.x[0],
@@ -1254,7 +1268,7 @@ def gbrt(root_path,station,optimizer='gp_minimize',n_calls=100):
     }
 
     params_df = pd.DataFrame(params_dict,index=[0])
-    params_df.to_csv(model_path +MODEL_NAME+'_optimized_params.csv')
+    params_df.to_csv(model_path +model_name+'_optimized_params.csv')
 
     GBR = GradientBoostingRegressor(
         max_depth=res.x[0],
@@ -1275,8 +1289,8 @@ def gbrt(root_path,station,optimizer='gp_minimize',n_calls=100):
     norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
     sMin = norm_id['series_min'][norm_id.shape[0]-1]
     sMax = norm_id['series_max'][norm_id.shape[0]-1]
-    print('Series Min:\n {}'.format(sMin))
-    print('Series Max:\n {}'.format(sMax))
+    logger.debug('Series Min:\n {}'.format(sMin))
+    logger.debug('Series Max:\n {}'.format(sMax))
 
     # Renormalized the records and predictions
     train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
@@ -1291,7 +1305,7 @@ def gbrt(root_path,station,optimizer='gp_minimize',n_calls=100):
 
 
     dum_pred_results(
-        path = model_path+MODEL_NAME+'.csv',
+        path = model_path+model_name+'.csv',
         train_y = train_y,
         train_predictions=train_predictions,
         dev_y = dev_y,
@@ -1300,45 +1314,40 @@ def gbrt(root_path,station,optimizer='gp_minimize',n_calls=100):
         test_predictions = test_predictions,
         time_cost=time_cost)
 
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +MODEL_NAME + '_train_pred.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +MODEL_NAME + "_dev_pred.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_pred.png")
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_error.png")
-    plt.show()
-    plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+MODEL_NAME+'_objective.eps',format='EPS',dpi=EPS_DPI)
-    plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+MODEL_NAME+'_evaluation.eps',format='EPS',dpi=EPS_DPI)
-    plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.eps',format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +MODEL_NAME + '_train_pred.eps',format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +MODEL_NAME + "_dev_pred.eps",format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_pred.eps",format='EPS',dpi=EPS_DPI)
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +MODEL_NAME + "_test_error.eps",format='EPS',dpi=EPS_DPI)
+    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path +model_name + '_train_pred.png')
+    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path +model_name + "_dev_pred.png")
+    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_pred.png")
+    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_error.png")
+    plt.close('all')
 
-def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp_minimize',wavelet_level='db10-lev2',n_calls=100):
+def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp_minimize',wavelet_level='db10-2',n_calls=100):
+    logger.info('Roo path:{}'.format(root_path))
+    logger.info('Station:{}'.format(station))
+    logger.info('Decomposer:{}'.format(decomposer))
+    logger.info('Predict pattern:{}'.format(predict_pattern))
+    logger.info('Optimizer:{}'.format(optimizer))
 
-    STATION = station
-    DECOMPOSER = decomposer
-    PREDICTOR = 'gbrt'
-    PREDICT_PATTERN = predict_pattern # hindcast or forecast
-    SIGNALS = STATION+'_'+DECOMPOSER
-    if DECOMPOSER=='wd':
-        data_path = root_path + '/'+SIGNALS+'/data/'+wavelet_level+'/'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+wavelet_level+'/'+PREDICT_PATTERN+'/'
+    predictor = 'gbrt'
+    signals = station+'_'+decomposer
+    if decomposer=='dwt' or decomposer=='modwt':
+        data_path = root_path + '/'+signals+'/data/'+wavelet_level+'/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+wavelet_level+'/'+predict_pattern+'/history/'
     else:
-        data_path = root_path + '/'+SIGNALS+'/data/'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+PREDICT_PATTERN+'/'
+        data_path = root_path + '/'+signals+'/data/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    MODEL_NAME = STATION+'_'+DECOMPOSER+'_'+PREDICTOR+'_'+PREDICT_PATTERN
+    model_name = station+'_'+decomposer+'_'+predictor+'_'+predict_pattern
 
-    print("Data Path:{}".format(data_path))
-    print("Model Path:{}".format(model_path))
+    logger.info("Data Path:{}".format(data_path))
+    logger.info("Model Path:{}".format(model_path))
 
     
-    if os.path.exists(model_path + MODEL_NAME+ '_optimized_params.csv'):
-        optimal_params = pd.read_csv(model_path + MODEL_NAME+ '_optimized_params.csv')
+    if os.path.exists(model_path + model_name+ '_optimized_params.csv'):
+        optimal_params = pd.read_csv(model_path + model_name+ '_optimized_params.csv')
         pre_n_calls = optimal_params['n_calls'][0]
         if pre_n_calls==n_calls:
-            print("The n_calls="+str(n_calls)+" was already tuned")
+            logger.info("The n_calls="+str(n_calls)+" was already tuned")
             sys.exit()
 
     # load data
@@ -1376,7 +1385,7 @@ def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp_min
         reg.set_params(**params)
         return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
 
-    #checkpoint_saver = CheckpointSaver(model_path+MODEL_NAME+'/checkpoint.pkl',compress=9)
+    #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
 
     start = time.process_time()
     if optimizer=='gp_minimize':
@@ -1392,13 +1401,13 @@ def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp_min
     dump(res,model_path+'result.pkl',store_objective=False)
     returned_results = load(model_path+'result.pkl')
 
-    plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+MODEL_NAME+'_objective.png')
-    plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+MODEL_NAME+'_evaluation.png')
-    plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.png')
+    plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_objective.png')
+    plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_evaluation.png')
+    plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
     
     
-    print('Best score=%.4f'%res.fun)
-    print("""Best parameters:
+    logger.info('Best score=%.4f'%res.fun)
+    logger.info("""Best parameters:
     - max_depth=%d
     - learning_rate=%.6f
     - max_features=%d
@@ -1406,7 +1415,7 @@ def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp_min
     - min_samples_leaf=%d""" % (res.x[0], res.x[1], res.x[2], res.x[3],
                                 res.x[4]))
     # end=datetime.datetime.now()
-    print('Time cost:{}'.format(time_cost))
+    logger.info('Time cost:{}'.format(time_cost))
 
     params_dict={
         'max_depth':res.x[0],
@@ -1419,7 +1428,7 @@ def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp_min
     }
 
     params_df = pd.DataFrame(params_dict,index=[0])
-    params_df.to_csv(model_path + MODEL_NAME+ '_optimized_params.csv')
+    params_df.to_csv(model_path + model_name+ '_optimized_params.csv')
 
     GBR = GradientBoostingRegressor(
         max_depth=res.x[0],
@@ -1440,8 +1449,8 @@ def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp_min
     norm_id = pd.read_csv(data_path + 'norm_unsample_id.csv')
     sMin = norm_id['series_min'][norm_id.shape[0]-1]
     sMax = norm_id['series_max'][norm_id.shape[0]-1]
-    print('Series Min:\n {}'.format(sMin))
-    print('Series Max:\n {}'.format(sMax))
+    logger.debug('Series Min:\n {}'.format(sMin))
+    logger.debug('Series Max:\n {}'.format(sMax))
 
     # Renormalized the records and predictions
     train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
@@ -1456,7 +1465,7 @@ def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp_min
 
 
     dum_pred_results(
-        path = model_path+MODEL_NAME+'.csv',
+        path = model_path+model_name+'.csv',
         train_y = train_y,
         train_predictions=train_predictions,
         dev_y = dev_y,
@@ -1465,57 +1474,55 @@ def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp_min
         test_predictions = test_predictions,
         time_cost=time_cost)
 
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + MODEL_NAME + '_train_pred.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + MODEL_NAME + "_dev_pred.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_pred.png")
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_error.png",)
-    plt.show()
-    plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+MODEL_NAME+'_objective.eps',format='EPS',dpi=EPS_DPI)
-    plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+MODEL_NAME+'_evaluation.eps',format='EPS',dpi=EPS_DPI)
-    plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.eps',format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + MODEL_NAME + '_train_pred.eps',format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + MODEL_NAME + "_dev_pred.eps",format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_pred.eps",format='EPS',dpi=EPS_DPI)
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_error.eps",format='EPS',dpi=EPS_DPI)
+    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + model_name + '_train_pred.png')
+    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + model_name + "_dev_pred.png")
+    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_pred.png")
+    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_error.png",)
+    plt.close('all')
 
 
-def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp_minimize',wavelet_level='db10-lev2',n_calls=100):
+def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp_minimize',wavelet_level='db10-2',n_calls=100):
+    logger.info('Roo path:{}'.format(root_path))
+    logger.info('Station:{}'.format(station))
+    logger.info('Decomposer:{}'.format(decomposer))
+    logger.info('Predict pattern:{}'.format(predict_pattern))
+    logger.info('Lags:{}'.format(lags))
+    logger.info('Model index:{}'.format(model_id))
+    logger.info('Optimizer:{}'.format(optimizer))
+    logger.info('Monther wavelet and decomposition level of WA:{}'.format(wavelet_level))
+    logger.info('Number of calls:{}'.format(n_calls))
 
     if model_id>len(lags):
         raise Exception("The model id exceed the number of sub-signals")
     # Set project parameters
-    STATION = station
-    DECOMPOSER = decomposer
-    PREDICTOR = 'gbrt'
-    PREDICT_PATTERN = predict_pattern # hindcast or forecast
-    SIGNALS = STATION+'_'+DECOMPOSER
+    predictor = 'gbrt'
+    signals = station+'_'+decomposer
     # Set the mode id:
-    MODEL_ID = model_id
-    if DECOMPOSER=='wd':
-        data_path = root_path + '/'+SIGNALS+'/data/'+wavelet_level+'/'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+wavelet_level+'/'+PREDICT_PATTERN+'/imf'+str(MODEL_ID)+'/'
+    if decomposer=='dwt' or decomposer=='modwt':
+        data_path = root_path + '/'+signals+'/data/'+wavelet_level+'/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+wavelet_level+'/'+predict_pattern+'/s'+str(model_id)+'/history/'
     else:
-        data_path = root_path + '/'+SIGNALS+'/data/'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+PREDICT_PATTERN+'/imf'+str(MODEL_ID)+'/'
+        data_path = root_path + '/'+signals+'/data/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/s'+str(model_id)+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    MODEL_NAME = STATION+'_'+DECOMPOSER+'_'+PREDICTOR+'_'+PREDICT_PATTERN+'_imf'+str(MODEL_ID)
+    model_name = station+'_'+decomposer+'_'+predictor+'_'+predict_pattern+'_s'+str(model_id)
 
-    print("Data Path:{}".format(data_path))
-    print("Model Path:{}".format(model_path))
+    logger.info("Data Path:{}".format(data_path))
+    logger.info("Model Path:{}".format(model_path))
 
     
-    if os.path.exists(model_path + MODEL_NAME+'_optimized_params_imf' + str(MODEL_ID) +'.csv'):
-        optimal_params = pd.read_csv(model_path + MODEL_NAME+'_optimized_params_imf' + str(MODEL_ID) +'.csv')
+    if os.path.exists(model_path + model_name+'_optimized_params_s' + str(model_id) +'.csv'):
+        optimal_params = pd.read_csv(model_path + model_name+'_optimized_params_s' + str(model_id) +'.csv')
         pre_n_calls = optimal_params['n_calls'][0]
         if pre_n_calls==n_calls:
-            print("The n_calls="+str(n_calls)+" was already tuned")
+            logger.info("The n_calls="+str(n_calls)+" was already tuned")
             sys.exit()
 
     # load data
-    train = pd.read_csv(data_path+'minmax_unsample_train_imf'+str(MODEL_ID)+'.csv')
-    dev = pd.read_csv(data_path+'minmax_unsample_dev_imf'+str(MODEL_ID)+'.csv')
-    test = pd.read_csv(data_path+'minmax_unsample_test_imf'+str(MODEL_ID)+'.csv')
+    train = pd.read_csv(data_path+'minmax_unsample_train_s'+str(model_id)+'.csv')
+    dev = pd.read_csv(data_path+'minmax_unsample_dev_s'+str(model_id)+'.csv')
+    test = pd.read_csv(data_path+'minmax_unsample_test_s'+str(model_id)+'.csv')
     train_dev = pd.concat([train,dev],axis=0)
     # shuffle
     train_dev = train_dev.sample(frac=1)
@@ -1547,7 +1554,7 @@ def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,o
         reg.set_params(**params)
         return -np.mean(cross_val_score(reg,train_dev_x,train_dev_y,cv=6,n_jobs=-1,scoring='neg_mean_squared_error'))
 
-    #checkpoint_saver = CheckpointSaver(model_path+MODEL_NAME+'/checkpoint.pkl',compress=9)
+    #checkpoint_saver = CheckpointSaver(model_path+model_name+'/checkpoint.pkl',compress=9)
 
     start = time.process_time()
     if optimizer=='gp_minimize':
@@ -1563,13 +1570,13 @@ def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,o
     dump(res,model_path+'result.pkl',store_objective=False)
     returned_results = load(model_path+'result.pkl')
     
-    plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+MODEL_NAME+'_objective.png')
-    plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+MODEL_NAME+'_evaluation.png')
-    plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.png')
+    plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_objective.png')
+    plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+model_name+'_evaluation.png')
+    plot_convergence_(res,fig_savepath=model_path+model_name+'_convergence.png')
     
 
-    print('Best score=%.4f'%res.fun)
-    print("""Best parameters:
+    logger.info('Best score=%.4f'%res.fun)
+    logger.info("""Best parameters:
     - max_depth=%d
     - learning_rate=%.6f
     - max_features=%d
@@ -1577,7 +1584,7 @@ def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,o
     - min_samples_leaf=%d""" % (res.x[0], res.x[1], res.x[2], res.x[3],
                                 res.x[4]))
     # end=datetime.datetime.now()
-    print('Time cost:{}'.format(time_cost))
+    logger.info('Time cost:{}'.format(time_cost))
 
     params_dict={
         'max_depth':res.x[0],
@@ -1590,7 +1597,7 @@ def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,o
     }
 
     params_df = pd.DataFrame(params_dict,index=[0])
-    params_df.to_csv(model_path + MODEL_NAME+'_optimized_params_imf' + str(MODEL_ID) +'.csv')
+    params_df.to_csv(model_path + model_name+'_optimized_params_s' + str(model_id) +'.csv')
 
     GBR = GradientBoostingRegressor(
         max_depth=res.x[0],
@@ -1608,11 +1615,11 @@ def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,o
     dev_y=(dev_y.values).flatten()
     test_y=(test_y.values).flatten()
 
-    norm_id = pd.read_csv(data_path + 'norm_unsample_id_imf' + str(MODEL_ID) + '.csv')
+    norm_id = pd.read_csv(data_path + 'norm_unsample_id_s' + str(model_id) + '.csv')
     sMin = norm_id['series_min'][norm_id.shape[0]-1]
     sMax = norm_id['series_max'][norm_id.shape[0]-1]
-    print('Series Min:\n {}'.format(sMin))
-    print('Series Max:\n {}'.format(sMax))
+    logger.debug('Series Min:\n {}'.format(sMin))
+    logger.debug('Series Max:\n {}'.format(sMax))
 
     # Renormalized the records and predictions
     train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
@@ -1624,7 +1631,7 @@ def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,o
 
 
     dum_pred_results(
-        path = model_path+MODEL_NAME+'.csv',
+        path = model_path+model_name+'.csv',
         train_y = train_y,
         train_predictions=train_predictions,
         dev_y = dev_y,
@@ -1633,72 +1640,56 @@ def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,o
         test_predictions = test_predictions,
         time_cost=time_cost)
 
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + MODEL_NAME + '_train_pred.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + MODEL_NAME + "_dev_pred.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_pred.png")
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_error.png")
-    plt.show()
-    plot_objective_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+MODEL_NAME+'_objective.eps',format='EPS',dpi=EPS_DPI)
-    plot_evaluations_(res,dimensions=DIMENSION_GBRT,fig_savepath=model_path+MODEL_NAME+'_evaluation.eps',format='EPS',dpi=EPS_DPI)
-    plot_convergence_(res,fig_savepath=model_path+MODEL_NAME+'_convergence.eps',format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + MODEL_NAME + '_train_pred.eps',format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + MODEL_NAME + "_dev_pred.eps",format='EPS',dpi=EPS_DPI)
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_pred.eps",format='EPS',dpi=EPS_DPI)
-    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "_test_error.eps",format='EPS',dpi=EPS_DPI)
+    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + model_name + '_train_pred.png')
+    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + model_name + "_dev_pred.png")
+    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_pred.png")
+    plot_error_distribution(test_y,test_predictions,fig_savepath=model_path + model_name + "_test_error.png")
+    plt.close('all')
 
-
-
-def lstm(root_path,station,seed,
-    epochs_num=5000,
+def lstm(root_path,station,predict_pattern,seed,
+    n_epochs=1000,
     batch_size=128,
-    learning_rate=0.007,
+    learn_rate=0.007,
     decay_rate=0.0,
-    hidden_layer=1,
-    hidden_units_1=8,
-    dropout_rate_1=0.0,
-    hidden_units_2=8,
-    dropout_rate_2=0.0,
-    early_stoping=True,
+    n_hidden_layers=1,
+    hidden_units=[8],
+    dropout_rates=[0.0],
+    early_stop=True,
     retrain=False,
     warm_up=False,
     initial_epoch=None,
     ):
+    logger.info('Build monoscale LSTM model...')
+    logger.info('Model informattion:')
+    logger.info('\tRoot path:{}'.format(root_path))
+    logger.info('\tStation:{}'.format(station))
+    logger.info('\tPredict pattern:{}'.format(predict_pattern))
+    logger.info('\tSeed:{}'.format(seed))
+    logger.info('\tNumber of epochs:{}'.format(n_epochs))
+    logger.info('\tBatch size:{}'.format(batch_size))
+    logger.info('\tLearning rate:{}'.format(learn_rate))
+    logger.info('\tDecay rate of learning rate:{}'.format(decay_rate))
+    logger.info('\tNumber of hidden layers:{}'.format(n_hidden_layers))
+    logger.info('\tNumber of hidden units:{}'.format(hidden_units))
+    logger.info('\tDropout rates:{}'.format(dropout_rates))
+    logger.info('\tEarly stoping:{}'.format(early_stop))
+    logger.info('\tRetrain model:{}'.format(retrain))
+    logger.info('\tWarm up:{}'.format(warm_up))
+    logger.info('\tInitial epoch of warm up:{}'.format(initial_epoch))
 
-    STATION = station
-    PREDICTOR = 'lstm'
-    data_path = root_path + '/'+STATION+'/data/'
-    model_path = root_path+'/'+STATION+'/projects/'+PREDICTOR+'/'
+    predictor = 'lstm'
+    data_path = root_path + '/'+station+'/data/'+predict_pattern+'/'
+    model_path = root_path+'/'+station+'/projects/'+predictor+'/'+predict_pattern+'/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-
-    RE_TRAIN = retrain
-    WARM_UP = warm_up
-    EARLY_STOPING = early_stoping
-    INITIAL_EPOCH = initial_epoch
-
-    # For initialize weights and bias
-    SEED=seed
-    # set hyper-parameters
-    EPS=epochs_num    #epochs number 500 for learning rate analysis
-    #########--1--###########
-    LR=learning_rate    #learnin rate 0.0001, 0.0003, 0.0007, 0.001, 0.003, 0.007,0.01, 0.03 ,0.07,0.1
-    #########--2--############
-    HU1 = hidden_units_1    #hidden units for hidden layer 1
-    BS = batch_size   #batch size
-    #########--3--###########
-    HL = hidden_layer      #hidden layers
-    HU2 = hidden_units_2    #hidden units for hidden layer 2
-    DC=decay_rate    #decay rate of learning rate
-    #########--4--###########
-    DR1=dropout_rate_1    #dropout rate for hidden layer 1
-    DR2=dropout_rate_1     #dropout rate for hidden layer 2
+    logger.info('\tData path:{}'.format(data_path))
+    logger.info('\tModel path:{}'.format(model_path))
 
     # 1.Import the sampled normalized data set from disk
+    logger.info('Load learning samples...')
     train = pd.read_csv(data_path+'minmax_unsample_train.csv')
     dev = pd.read_csv(data_path+'minmax_unsample_dev.csv')
     test = pd.read_csv(data_path+'minmax_unsample_test.csv')
-
-    # Split features from labels
     train_x = train
     train_y = train.pop('Y')
     train_y = train_y.as_matrix()
@@ -1712,63 +1703,47 @@ def lstm(root_path,station,seed,
     train_x = (train_x.values).reshape(train_x.shape[0],1,train_x.shape[1])
     dev_x = (dev_x.values).reshape(dev_x.shape[0],1,dev_x.shape[1])
     test_x = (test_x.values).reshape(test_x.shape[0],1,test_x.shape[1])
-    # 2.Build LSTM model with keras
-    # set the hyper-parameters
-    LEARNING_RATE=LR
-    EPOCHS = EPS
-    BATCH_SIZE = BS
-    if HL==2:
-        HIDDEN_UNITS = [HU1,HU2]
-        DROP_RATE = [DR1,DR2]
-    else:
-        HIDDEN_UNITS = [HU1]
-        DROP_RATE = [DR1]
-    DECAY_RATE = DC
-    MODEL_NAME = 'LSTM-LR['+str(LEARNING_RATE)+\
-        ']-HU'+str(HIDDEN_UNITS)+\
-        '-EPS['+str(EPOCHS)+\
-        ']-BS['+str(BATCH_SIZE)+\
-        ']-DR'+str(DROP_RATE)+\
-        '-DC['+str(DECAY_RATE)+\
-        ']-SEED['+str(SEED)+']'
-    # RESUME_TRAINING = True
+
+    model_name = 'LSTM-LR['+str(learn_rate)+\
+        ']-HU'+str(hidden_units)+\
+        '-EPS['+str(n_epochs)+\
+        ']-BS['+str(batch_size)+\
+        ']-DR'+str(dropout_rates)+\
+        '-DC['+str(decay_rate)+\
+        ']-SEED['+str(seed)+']'
+    
+    
     def build_model():
-        if HL==2:
+        logger.info('Define LSTM model...')
+        if n_hidden_layers==2:
             model = keras.Sequential(
             [
-                layers.LSTM(HIDDEN_UNITS[0],activation=tf.nn.relu,return_sequences=True,input_shape=(train_x.shape[1],train_x.shape[2])),
-                layers.Dropout(DROP_RATE[0], noise_shape=None, seed=None),
-                layers.LSTM(HIDDEN_UNITS[1],activation=tf.nn.relu,return_sequences=False), # first hidden layer if hasnext hidden layer
-                layers.Dropout(DROP_RATE[1], noise_shape=None, seed=None),
-                # layers.LSTM(20,activation=tf.nn.relu,return_sequence=True),
+                layers.LSTM(hidden_units[0],activation=tf.nn.relu,return_sequences=True,input_shape=(train_x.shape[1],train_x.shape[2])),
+                layers.Dropout(dropout_rates[0], noise_shape=None, seed=seed),
+                layers.LSTM(hidden_units[1],activation=tf.nn.relu,return_sequences=False), # first hidden layer if hasnext hidden layer
+                layers.Dropout(dropout_rates[1], noise_shape=None, seed=seed),
                 layers.Dense(1)
             ]
         )
         else:
             model = keras.Sequential(
                 [
-                    layers.LSTM(HIDDEN_UNITS[0],activation=tf.nn.relu,input_shape=(train_x.shape[1],train_x.shape[2])),
-                    layers.Dropout(DROP_RATE[0], noise_shape=None, seed=None),
-                    # layers.LSTM(HIDDEN_UNITS1,activation=tf.nn.relu,return_sequences=True,input_shape=(train_x.shape[1],train_x.shape[2])), # first hidden layer if hasnext hidden layer
-                    # layers.LSTM(20,activation=tf.nn.relu,return_sequence=True),
+                    layers.LSTM(hidden_units[0],activation=tf.nn.relu,input_shape=(train_x.shape[1],train_x.shape[2])),
+                    layers.Dropout(dropout_rates[0], noise_shape=None, seed=seed),
                     layers.Dense(1)
                 ]
             )
-        optimizer = keras.optimizers.Adam(LEARNING_RATE,
-        decay=DECAY_RATE
-        )
-        model.compile(loss='mean_squared_error',
-                        optimizer=optimizer,
-                        metrics=['mean_absolute_error','mean_squared_error'])
+        optimizer = keras.optimizers.Adam(learn_rate,decay=decay_rate)
+        model.compile(loss='mean_squared_error',optimizer=optimizer,metrics=['mean_absolute_error','mean_squared_error'])
         return model
-    # set model's parameters restore path
-    cp_path = model_path+MODEL_NAME+'\\'
+    logger.info('Set model parameters restore path...')
+    cp_path = model_path+model_name+'\\'
     if not os.path.exists(cp_path):
         os.makedirs(cp_path)
-    checkpoint_path = model_path+MODEL_NAME+'\\cp.ckpt' #restore only the latest checkpoint after every update
+    checkpoint_path = model_path+model_name+'\\cp.ckpt' #restore only the latest checkpoint after every update
     # checkpoint_path = model_path+'cp-{epoch:04d}.ckpt' #restore the checkpoint every period=x epoch
     checkpoint_dir = os.path.dirname(checkpoint_path)
-    print('checkpoint dir:{}'.format(checkpoint_dir))
+    logger.info('checkpoint dir:{}'.format(checkpoint_dir))
     cp_callback = keras.callbacks.ModelCheckpoint(checkpoint_path,save_best_only=True,mode='min',save_weights_only=True,verbose=1)
     # cp_callback = keras.callbacks.ModelCheckpoint(checkpoint_path,save_weights_only=True,period=5,verbose=1)
     # if not RESUME_TRAINING:
@@ -1795,26 +1770,24 @@ def lstm(root_path,station,seed,
         print('.', end='')
     files = os.listdir(checkpoint_dir)
 
-    
     # reduce_lr = ReduceLROnPlateau(monitor='val_loss', patience=10, mode='auto')
     reduce_lr = ReduceLROnPlateau(monitor='val_loss',min_lr=0.00001,factor=0.2, verbose=1,patience=10, mode='min')
     early_stopping = EarlyStopping(monitor='val_loss', mode='min',verbose=1,patience=100,restore_best_weights=True)
 
-
-    warm_dir = 'LSTM-LR['+str(LEARNING_RATE)+\
-        ']-HU'+str(HIDDEN_UNITS)+\
-        '-EPS['+str(INITIAL_EPOCH)+\
-        ']-BS['+str(BATCH_SIZE)+\
-        ']-DR'+str(DROP_RATE)+\
-        '-DC['+str(DECAY_RATE)+\
-        ']-SEED['+str(SEED)+']'
-    print("WARM UP PATH:{}".format(os.path.exists(model_path+warm_dir)))
-    # Training models
-    if  RE_TRAIN: # Retraining the LSTM model
-        print('retrain the model')
-        if EARLY_STOPING:
+    warm_dir = 'LSTM-LR['+str(learn_rate)+\
+        ']-HU'+str(hidden_units)+\
+        '-EPS['+str(initial_epoch)+\
+        ']-BS['+str(batch_size)+\
+        ']-DR'+str(dropout_rates)+\
+        '-DC['+str(decay_rate)+\
+        ']-SEED['+str(seed)+']'
+    logger.info("WARM UP PATH:{}".format(os.path.exists(model_path+warm_dir)))
+    logger.info('Train the LSTM model ...')
+    if  retrain: # Retraining the LSTM model
+        logger.info('retrain the model')
+        if early_stop:
             start = time.process_time()
-            history = model.fit(train_x,train_y,epochs=EPOCHS,batch_size=BATCH_SIZE ,validation_data=(dev_x,dev_y),verbose=1,
+            history = model.fit(train_x,train_y,epochs=n_epochs,batch_size=batch_size ,validation_data=(dev_x,dev_y),verbose=1,
             callbacks=[
                 cp_callback,
                 early_stopping,
@@ -1823,24 +1796,24 @@ def lstm(root_path,station,seed,
             time_cost = end-start
         else:
             start = time.process_time()
-            history = model.fit(train_x,train_y,epochs=EPOCHS,batch_size=BATCH_SIZE ,validation_data=(dev_x,dev_y),verbose=1,callbacks=[cp_callback])
+            history = model.fit(train_x,train_y,epochs=n_epochs,batch_size=batch_size ,validation_data=(dev_x,dev_y),verbose=1,callbacks=[cp_callback])
             end =time.process_time()
             time_cost = end-start
         # # Visualize the model's training progress using the stats stored in the history object
         hist = pd.DataFrame(history.history)
-        hist.to_csv(model_path+MODEL_NAME+'-HISTORY-TRAIN-TEST.csv')
+        hist.to_csv(model_path+model_name+'-HISTORY-TRAIN-TEST.csv')
         hist['epoch']=history.epoch
         # print(hist.tail())
-        plot_history(history,model_path+MODEL_NAME+'-MAE-ERRORS-TRAINTEST.png',model_path+MODEL_NAME+'-MSE-ERRORS-TRAINTEST.png')
+        plot_history(history,model_path+model_name+'-MAE-ERRORS-TRAINTEST.png',model_path+model_name+'-MSE-ERRORS-TRAINTEST.png')
     elif len(files)==0: # The current model has not been trained
-        if os.path.exists(model_path+warm_dir) and WARM_UP: # Training the model using the trained weights and biases as initialized parameters
-            print('WARM UP FROM EPOCH '+str(INITIAL_EPOCH)) # Warm up from the last epoch of the target model
+        if os.path.exists(model_path+warm_dir) and warm_up: # Training the model using the trained weights and biases as initialized parameters
+            logger.info('WARM UP FROM EPOCH '+str(initial_epoch)) # Warm up from the last epoch of the target model
             prev_time_cost = (pd.read_csv(model_path+warm_dir+'.csv')['time_cost'])[0]
             warm_path=model_path+warm_dir+'\\cp.ckpt'
             model.load_weights(warm_path)
-            if EARLY_STOPING:
+            if early_stop:
                 start=time.process_time()
-                history = model.fit(train_x,train_y,initial_epoch=INITIAL_EPOCH,epochs=EPOCHS,batch_size=BATCH_SIZE ,validation_data=(dev_x,dev_y),verbose=1,
+                history = model.fit(train_x,train_y,initial_epoch=initial_epoch,epochs=n_epochs,batch_size=batch_size ,validation_data=(dev_x,dev_y),verbose=1,
                 callbacks=[
                     cp_callback,
                     early_stopping,
@@ -1849,22 +1822,22 @@ def lstm(root_path,station,seed,
                 time_cost = end - start + prev_time_cost
             else:
                 start = time.process_time()
-                history = model.fit(train_x,train_y,initial_epoch=INITIAL_EPOCH,epochs=EPOCHS,batch_size=BATCH_SIZE ,validation_data=(dev_x,dev_y),verbose=1,
+                history = model.fit(train_x,train_y,initial_epoch=initial_epoch,epochs=n_epochs,batch_size=batch_size ,validation_data=(dev_x,dev_y),verbose=1,
                 callbacks=[
                     cp_callback,
                     ])
                 end = time.process_time()
                 time_cost = end - start + prev_time_cost
             hist = pd.DataFrame(history.history)
-            hist.to_csv(model_path+MODEL_NAME+'-HISTORY-TRAIN-TEST.csv')
+            hist.to_csv(model_path+model_name+'-HISTORY-TRAIN-TEST.csv')
             hist['epoch']=history.epoch
             # print(hist.tail())
-            plot_history(history,model_path+MODEL_NAME+'-MAE-ERRORS-TRAINTEST.png',model_path+MODEL_NAME+'-MSE-ERRORS-TRAINTEST.png')
+            plot_history(history,model_path+model_name+'-MAE-ERRORS-TRAINTEST.png',model_path+model_name+'-MSE-ERRORS-TRAINTEST.png')
         else: # Training entirely new model
-            print('new train')
-            if EARLY_STOPING:
+            logger.info('new train')
+            if early_stop:
                 start = time.process_time()
-                history = model.fit(train_x,train_y,epochs=EPOCHS,batch_size=BATCH_SIZE ,validation_data=(dev_x,dev_y),verbose=1,callbacks=[
+                history = model.fit(train_x,train_y,epochs=n_epochs,batch_size=batch_size ,validation_data=(dev_x,dev_y),verbose=1,callbacks=[
                     cp_callback,
                     early_stopping,
                     ])
@@ -1872,20 +1845,20 @@ def lstm(root_path,station,seed,
                 time_cost = end -start
             else:
                 start = time.process_time()
-                history = model.fit(train_x,train_y,epochs=EPOCHS,batch_size=BATCH_SIZE ,validation_data=(dev_x,dev_y),verbose=1,
+                history = model.fit(train_x,train_y,epochs=n_epochs,batch_size=batch_size ,validation_data=(dev_x,dev_y),verbose=1,
                 callbacks=[
                     cp_callback,
                     ])
                 end = time.process_time()
                 time_cost = end - start
             hist = pd.DataFrame(history.history)
-            hist.to_csv(model_path+MODEL_NAME+'-HISTORY-TRAIN-TEST.csv')
+            hist.to_csv(model_path+model_name+'-HISTORY-TRAIN-TEST.csv')
             hist['epoch']=history.epoch
             # print(hist.tail())
-            plot_history(history,model_path+MODEL_NAME+'-MAE-ERRORS-TRAINTEST.png',model_path+MODEL_NAME+'-MSE-ERRORS-TRAINTEST.png')
+            plot_history(history,model_path+model_name+'-MAE-ERRORS-TRAINTEST.png',model_path+model_name+'-MSE-ERRORS-TRAINTEST.png')
     else:
-        print('#'*10+'Already Trained')
-        time_cost = (pd.read_csv(model_path+MODEL_NAME+'.csv')['time_cost'])[0]
+        logger.info('#'*10+'Already Trained')
+        time_cost = (pd.read_csv(model_path+model_name+'.csv')['time_cost'])[0]
         model.load_weights(checkpoint_path)
         # loss, mae, mse = model.evaluate(test_x, test_y, verbose=1)
     """
@@ -1893,8 +1866,7 @@ def lstm(root_path,station,seed,
     loss, mae, mse = model.evaluate(test_x, test_y, verbose=1)
     print("Testing set Mean Abs Error: {:5.2f} ".format(mae))
     """
-    # 4. Predict the model
-    # load the unsample data
+    logger.info('Predict the training, development and testing samples...')
     train_predictions = model.predict(train_x).flatten()
     dev_predictions = model.predict(dev_x).flatten()
     test_predictions = model.predict(test_x).flatten()
@@ -1903,8 +1875,8 @@ def lstm(root_path,station,seed,
     norm = pd.read_csv(data_path+'norm_unsample_id.csv')
     sMax = norm['series_max'][norm.shape[0]-1]
     sMin = norm['series_min'][norm.shape[0]-1]
-    print('Series min:{}'.format(sMin))
-    print('Series max:{}'.format(sMax))
+    logger.debug('Series min:{}'.format(sMin))
+    logger.debug('Series max:{}'.format(sMax))
 
     train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
     train_predictions = np.multiply(train_predictions + 1,sMax - sMin) / 2 + sMin
@@ -1915,9 +1887,9 @@ def lstm(root_path,station,seed,
     test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
     test_predictions = np.multiply(test_predictions + 1,sMax - sMin) / 2 + sMin
     test_predictions[test_predictions<0.0]=0.0
-
+    logger.info('Dump the prediction results...')
     dum_pred_results(
-        path = model_path+MODEL_NAME+'.csv',
+        path = model_path+model_name+'.csv',
         train_y = train_y,
         train_predictions=train_predictions,
         dev_y = dev_y,
@@ -1926,73 +1898,69 @@ def lstm(root_path,station,seed,
         test_predictions = test_predictions,
         time_cost=time_cost,
         )
-
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + MODEL_NAME + '-TRAIN-PRED.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + MODEL_NAME + "-DEV-PRED.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "-TEST-PRED.png")
-    plot_error_distribution(test_predictions,test_y,model_path+MODEL_NAME+'-TEST-ERROR-DSTRI.png')
-
+    logger.info('Plot the prediction results...')
+    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + model_name + '-TRAIN-PRED.png')
+    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + model_name + "-DEV-PRED.png")
+    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + model_name + "-TEST-PRED.png")
+    plot_error_distribution(test_predictions,test_y,model_path+model_name+'-TEST-ERROR-DSTRI.png')
+    plt.close('all')
 
 def one_step_lstm(
         root_path,station,decomposer,predict_pattern,seed,
-        wavelet_level='db10-lev2',
-        epochs_num=5000,
+        wavelet_level='db10-2',
+        n_epochs=1000,
         batch_size=128,
-        learning_rate=0.007,
+        learn_rate=0.007,
         decay_rate=0.0,
-        hidden_layer=1,
-        hidden_units_1=8,
-        dropout_rate_1=0.0,
-        hidden_units_2=8,
-        dropout_rate_2=0.0,
-        early_stoping=True,
+        n_hidden_layers=1,
+        hidden_units=[8],
+        dropout_rates=[0.0],
+        early_stop=True,
         retrain=False,
         warm_up=False,
         initial_epoch=None,
     ):
+    logger.info('Build one-step LSTM model...')
+    logger.info('Model informattion:')
+    logger.info('\tRoot path:{}'.format(root_path))
+    logger.info('\tStation:{}'.format(station))
+    logger.info('\tDecomposer:{}'.format(decomposer))
+    logger.info('\tPredict pattern:{}'.format(predict_pattern))
+    logger.info('\tSeed:{}'.format(seed))
+    logger.info('\tMonther wavelet and decomposition level of WA:{}'.format(wavelet_level))
+    logger.info('\tNumber of epochs:{}'.format(n_epochs))
+    logger.info('\tBatch size:{}'.format(batch_size))
+    logger.info('\tLearning rate:{}'.format(learn_rate))
+    logger.info('\tDecay rate of learning rate:{}'.format(decay_rate))
+    logger.info('\tNumber of hidden layers:{}'.format(n_hidden_layers))
+    logger.info('\tNumber of hidden units:{}'.format(hidden_units))
+    logger.info('\tDropout rates:{}'.format(dropout_rates))
+    logger.info('\tEarly stoping:{}'.format(early_stop))
+    logger.info('\tRetrain model:{}'.format(retrain))
+    logger.info('\tWarm up:{}'.format(warm_up))
+    logger.info('\tInitial epoch of warm up:{}'.format(initial_epoch))
+
     # Set project parameters
-    STATION = station
-    DECOMPOSER = decomposer
-    PREDICTOR = 'lstm'
-    PREDICT_PATTERN = predict_pattern # hindcast or forecast
-    SIGNALS = STATION+'_'+DECOMPOSER
-    if DECOMPOSER=='wd':
-        data_path = root_path + '/'+SIGNALS+'/data/'+wavelet_level+'/one_step_one_month_'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+wavelet_level+'/one_step_one_month_'+PREDICT_PATTERN+'/'
+    predictor = 'lstm'
+    predict_pattern = predict_pattern # hindcast or forecast
+    signals = station+'_'+decomposer
+    if decomposer=='dwt' or decomposer=='modwt':
+        data_path = root_path + '/'+signals+'/data/'+wavelet_level+'/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+wavelet_level+'/'+predict_pattern+'/history/'
     else:
-        data_path = root_path + '/'+SIGNALS+'/data/one_step_one_month_'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/one_step_one_month_'+PREDICT_PATTERN+'/'
+        data_path = root_path + '/'+signals+'/data/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/history/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-
+    logger.info('\tData path:{}'.format(data_path))
+    logger.info('\tModel path:{}'.format(model_path))
     ######################################################
-    RE_TRAIN = retrain
-    WARM_UP = warm_up
-    EARLY_STOPING = early_stoping
-    INITIAL_EPOCH = initial_epoch
-    # For initialize weights and bias
-    SEED=seed
-    # set hyper-parameters
-    EPS=epochs_num     #epochs number
-    #########--1--###########
-    LR=learning_rate     #learnin rate 0.0001, 0.0003, 0.0007, 0.001, 0.003, 0.007,0.01, 0.03 0.1
-    #########--2--############
-    HU1 = hidden_units_1     #hidden units for hidden layer 1
-    BS = batch_size    #batch size
-    #########--3--###########
-    HL = hidden_layer      #hidden layers
-    HU2 = hidden_units_2    #hidden units for hidden layer 2
-    DC=decay_rate  #decay rate of learning rate
-    #########--4--###########
-    DR1=dropout_rate_1      #dropout rate for hidden layer 1
-    DR2=dropout_rate_2      #dropout rate for hidden layer 2
-    ########################################################
-
+   
+    logger.info('Load learning samples...')
     # 1.Import the sampled normalized data set from disk
     train = pd.read_csv(data_path+'minmax_unsample_train.csv')
     dev = pd.read_csv(data_path+'minmax_unsample_dev.csv')
     test = pd.read_csv(data_path+'minmax_unsample_test.csv')
-
     # Split features from labels
     train_x = train
     train_y = train.pop('Y')
@@ -2007,64 +1975,49 @@ def one_step_lstm(
     train_x = (train_x.values).reshape(train_x.shape[0],1,train_x.shape[1])
     dev_x = (dev_x.values).reshape(dev_x.shape[0],1,dev_x.shape[1])
     test_x = (test_x.values).reshape(test_x.shape[0],1,test_x.shape[1])
-    # 2.Build LSTM model with keras
-    # set the hyper-parameters
-    LEARNING_RATE=LR
-    EPOCHS = EPS
-    BATCH_SIZE = BS
-    if HL==2:
-        HIDDEN_UNITS = [HU1,HU2]
-        DROP_RATE = [DR1,DR2]
-    else:
-        HIDDEN_UNITS = [HU1]
-        DROP_RATE = [DR1]
 
-    DECAY_RATE = DC
-    MODEL_NAME = 'LSTM-LR['+str(LEARNING_RATE)+\
-        ']-HU'+str(HIDDEN_UNITS)+\
-        '-EPS['+str(EPOCHS)+\
-        ']-BS['+str(BATCH_SIZE)+\
-        ']-DR'+str(DROP_RATE)+\
-        '-DC['+str(DECAY_RATE)+\
-        ']-SEED['+str(SEED)+']'
+    # 2.Build LSTM model with keras  
+    model_name = 'LSTM-LR['+str(learn_rate)+\
+        ']-HU'+str(hidden_units)+\
+        '-EPS['+str(n_epochs)+\
+        ']-BS['+str(batch_size)+\
+        ']-DR'+str(dropout_rates)+\
+        '-DC['+str(decay_rate)+\
+        ']-SEED['+str(seed)+']'
     # RESUME_TRAINING = True
     def build_model():
-        if HL==2:
+        logger.info('Build LSTM model...')
+        if n_hidden_layers==2:
             model = keras.Sequential(
             [
-                layers.LSTM(HIDDEN_UNITS[0],activation=tf.nn.relu,return_sequences=True,input_shape=(train_x.shape[1],train_x.shape[2])),
-                layers.Dropout(DROP_RATE[0], noise_shape=None, seed=None),
-                layers.LSTM(HIDDEN_UNITS[1],activation=tf.nn.relu,return_sequences=False), # first hidden layer if hasnext hidden layer
-                layers.Dropout(DROP_RATE[1], noise_shape=None, seed=None),
-                # layers.LSTM(20,activation=tf.nn.relu,return_sequence=True),
+                layers.LSTM(hidden_units[0],activation=tf.nn.relu,return_sequences=True,input_shape=(train_x.shape[1],train_x.shape[2])),
+                layers.Dropout(dropout_rates[0], noise_shape=None, seed=seed),
+                layers.LSTM(hidden_units[1],activation=tf.nn.relu,return_sequences=False), # first hidden layer if hasnext hidden layer
+                layers.Dropout(dropout_rates[1], noise_shape=None, seed=seed),
                 layers.Dense(1)
             ]
         )
         else:
             model = keras.Sequential(
                 [
-                    layers.LSTM(HIDDEN_UNITS[0],activation=tf.nn.relu,input_shape=(train_x.shape[1],train_x.shape[2])),
-                    layers.Dropout(DROP_RATE[0], noise_shape=None, seed=None),
-                    # layers.LSTM(HIDDEN_UNITS1,activation=tf.nn.relu,return_sequences=True,input_shape=(train_x.shape[1],train_x.shape[2])), # first hidden layer if hasnext hidden layer
-                    # layers.LSTM(20,activation=tf.nn.relu,return_sequence=True),
+                    layers.LSTM(hidden_units[0],activation=tf.nn.relu,input_shape=(train_x.shape[1],train_x.shape[2])),
+                    layers.Dropout(dropout_rates[0], noise_shape=None, seed=seed),
                     layers.Dense(1)
                 ]
             )
-        optimizer = keras.optimizers.Adam(LEARNING_RATE,
-        decay=DECAY_RATE
-        )
-        model.compile(loss='mean_squared_error',
-                        optimizer=optimizer,
+        optimizer = keras.optimizers.Adam(learn_rate,decay=decay_rate)
+        model.compile(loss='mean_squared_error',optimizer=optimizer,
                         metrics=['mean_absolute_error','mean_squared_error'])
         return model
+    logger.info('Set model parameters restore path...')
     # set model's parameters restore path
-    cp_path = model_path+MODEL_NAME+'\\'
+    cp_path = model_path+model_name+'\\'
     if not os.path.exists(cp_path):
         os.makedirs(cp_path)
-    checkpoint_path = model_path+MODEL_NAME+'\\cp.ckpt' #restore only the latest checkpoint after every update
+    checkpoint_path = model_path+model_name+'\\cp.ckpt' #restore only the latest checkpoint after every update
     # checkpoint_path = model_path+'cp-{epoch:04d}.ckpt' #restore the checkpoint every period=x epoch
     checkpoint_dir = os.path.dirname(checkpoint_path)
-    print('checkpoint dir:{}'.format(checkpoint_dir))
+    logger.info('checkpoint dir:{}'.format(checkpoint_dir))
     cp_callback = keras.callbacks.ModelCheckpoint(checkpoint_path,save_best_only=True,mode='min',save_weights_only=True,verbose=1)
     # cp_callback = keras.callbacks.ModelCheckpoint(checkpoint_path,save_weights_only=True,period=5,verbose=1)
     # if not RESUME_TRAINING:
@@ -2097,21 +2050,22 @@ def one_step_lstm(
     early_stopping = EarlyStopping(monitor='val_loss', mode='min',verbose=1,patience=200,restore_best_weights=True)
 
 
-    warm_dir = 'LSTM-LR['+str(LEARNING_RATE)+\
-        ']-HU'+str(HIDDEN_UNITS)+\
-        '-EPS['+str(INITIAL_EPOCH)+\
-        ']-BS['+str(BATCH_SIZE)+\
-        ']-DR'+str(DROP_RATE)+\
-        '-DC['+str(DECAY_RATE)+\
-        ']-SEED['+str(SEED)+']'
-    print("WARM UP PATH:{}".format(os.path.exists(model_path+warm_dir)))
+    warm_dir = 'LSTM-LR['+str(learn_rate)+\
+        ']-HU'+str(hidden_units)+\
+        '-EPS['+str(initial_epoch)+\
+        ']-BS['+str(batch_size)+\
+        ']-DR'+str(dropout_rates)+\
+        '-DC['+str(decay_rate)+\
+        ']-SEED['+str(seed)+']'
+    logger.info("WARM UP PATH:{}".format(os.path.exists(model_path+warm_dir)))
     # Training models
-    if  RE_TRAIN: # Retraining the LSTM model
+    logger.info('Train the LSTM model...')
+    if  retrain: # Retraining the LSTM model
         print('retrain the model')
-        if EARLY_STOPING:
+        if early_stop:
             start = time.process_time()
-            history = model.fit(train_x,train_y,epochs=EPOCHS,
-            batch_size=BATCH_SIZE ,
+            history = model.fit(train_x,train_y,epochs=n_epochs,
+            batch_size=batch_size ,
             validation_data=(dev_x,dev_y),
             verbose=1,
             callbacks=[
@@ -2122,8 +2076,8 @@ def one_step_lstm(
             time_cost = end-start
         else:
             start=time.process_time()
-            history = model.fit(train_x,train_y,epochs=EPOCHS,
-            batch_size=BATCH_SIZE ,
+            history = model.fit(train_x,train_y,epochs=n_epochs,
+            batch_size=batch_size ,
             validation_data=(dev_x,dev_y),
             verbose=1,
             callbacks=[
@@ -2132,27 +2086,27 @@ def one_step_lstm(
             end = time.process_time()
             time_cost = end - start
         hist = pd.DataFrame(history.history)
-        hist.to_csv(model_path+MODEL_NAME+'-HISTORY-TRAIN-TEST.csv')
+        hist.to_csv(model_path+model_name+'-HISTORY-TRAIN-TEST.csv')
         hist['epoch']=history.epoch
         # print(hist.tail())
         plot_history(history,
-        model_path+MODEL_NAME+'-MAE-ERRORS-TRAINTEST.png',
-        model_path+MODEL_NAME+'-MSE-ERRORS-TRAINTEST.png')
+        model_path+model_name+'-MAE-ERRORS-TRAINTEST.png',
+        model_path+model_name+'-MSE-ERRORS-TRAINTEST.png')
 
     elif len(files)==0:# The current model has not been trained
         # Training the model using the trained weights and biases as initialized parameters
-        if os.path.exists(model_path+warm_dir) and WARM_UP:
+        if os.path.exists(model_path+warm_dir) and warm_up:
             # Warm up from the last epoch of the target model
-            print('WARM UP FROM EPOCH '+str(INITIAL_EPOCH))
+            logger.info('WARM UP FROM EPOCH '+str(initial_epoch))
             prev_time_cost = (pd.read_csv(model_path+warm_dir+'.csv')['time_cost'])[0]
             warm_path=model_path+warm_dir+'\\cp.ckpt'
             model.load_weights(warm_path)
-            if EARLY_STOPING:
+            if early_stop:
                 start = time.process_time()
                 history = model.fit(train_x,train_y,
-                initial_epoch=INITIAL_EPOCH,
-                epochs=EPOCHS,
-                batch_size=BATCH_SIZE ,
+                initial_epoch=initial_epoch,
+                epochs=n_epochs,
+                batch_size=batch_size ,
                 validation_data=(dev_x,dev_y),
                 verbose=1,
                 callbacks=[
@@ -2164,9 +2118,9 @@ def one_step_lstm(
             else:
                 start = time.process_time()
                 history = model.fit(train_x,train_y,
-                initial_epoch=INITIAL_EPOCH,
-                epochs=EPOCHS,
-                batch_size=BATCH_SIZE ,
+                initial_epoch=initial_epoch,
+                epochs=n_epochs,
+                batch_size=batch_size ,
                 validation_data=(dev_x,dev_y),
                 verbose=1,
                 callbacks=[
@@ -2175,19 +2129,19 @@ def one_step_lstm(
                 end = time.process_time()
                 time_cost = end - start + prev_time_cost
             hist = pd.DataFrame(history.history)
-            hist.to_csv(model_path+MODEL_NAME+'-HISTORY-TRAIN-TEST.csv')
+            hist.to_csv(model_path+model_name+'-HISTORY-TRAIN-TEST.csv')
             hist['epoch']=history.epoch
             # print(hist.tail())
             plot_history(history,
-            model_path+MODEL_NAME+'-MAE-ERRORS-TRAINTEST.png',
-            model_path+MODEL_NAME+'-MSE-ERRORS-TRAINTEST.png')
+            model_path+model_name+'-MAE-ERRORS-TRAINTEST.png',
+            model_path+model_name+'-MSE-ERRORS-TRAINTEST.png')
         else:
             print('new train')
-            if EARLY_STOPING:
+            if early_stop:
                 start = time.process_time()
                 history = model.fit(train_x,train_y,
-                epochs=EPOCHS,
-                batch_size=BATCH_SIZE ,
+                epochs=n_epochs,
+                batch_size=batch_size ,
                 validation_data=(dev_x,dev_y),
                 verbose=1,
                 callbacks=[
@@ -2199,23 +2153,23 @@ def one_step_lstm(
             else:
                 start = time.process_time()
                 history = model.fit(train_x,train_y,
-                epochs=EPOCHS,
-                batch_size=BATCH_SIZE ,
+                epochs=n_epochs,
+                batch_size=batch_size ,
                 validation_data=(dev_x,dev_y),
                 verbose=1,
                 callbacks=[cp_callback,])
                 end = time.process_time()
                 time_cost = end - start
             hist = pd.DataFrame(history.history)
-            hist.to_csv(model_path+MODEL_NAME+'-HISTORY-TRAIN-TEST.csv')
+            hist.to_csv(model_path+model_name+'-HISTORY-TRAIN-TEST.csv')
             hist['epoch']=history.epoch
             # print(hist.tail())
             plot_history(history,
-            model_path+MODEL_NAME+'-MAE-ERRORS-TRAINTEST.png',
-            model_path+MODEL_NAME+'-MSE-ERRORS-TRAINTEST.png')
+            model_path+model_name+'-MAE-ERRORS-TRAINTEST.png',
+            model_path+model_name+'-MSE-ERRORS-TRAINTEST.png')
     else:
-        print('#'*10+'Already Trained')
-        time_cost = (pd.read_csv(model_path+MODEL_NAME+'.csv')['time_cost'])[0]
+        logger.info('#'*10+'Already Trained')
+        time_cost = (pd.read_csv(model_path+model_name+'.csv')['time_cost'])[0]
         model.load_weights(checkpoint_path)
 
         # loss, mae, mse = model.evaluate(test_x, test_y, verbose=1)
@@ -2226,6 +2180,7 @@ def one_step_lstm(
     """
     # 4. Predict the model
     # load the unsample data
+    logger.info('Predict the training, development and testing samples...')
     train_predictions = model.predict(train_x).flatten()
     dev_predictions = model.predict(dev_x).flatten()
     test_predictions = model.predict(test_x).flatten()
@@ -2234,8 +2189,8 @@ def one_step_lstm(
     norm = pd.read_csv(data_path+'norm_unsample_id.csv')
     sMax = norm['series_max'][norm.shape[0]-1]
     sMin = norm['series_min'][norm.shape[0]-1]
-    print('Series min:{}'.format(sMin))
-    print('Series max:{}'.format(sMax))
+    logger.debug('Series min:{}'.format(sMin))
+    logger.debug('Series max:{}'.format(sMax))
 
     train_y = np.multiply(train_y + 1,sMax - sMin) / 2 + sMin
     dev_y = np.multiply(dev_y + 1,sMax - sMin) / 2 + sMin
@@ -2246,9 +2201,9 @@ def one_step_lstm(
     dev_predictions[dev_predictions<0.0]=0.0
     test_predictions = np.multiply(test_predictions + 1, sMax -sMin) / 2 + sMin
     test_predictions[test_predictions<0.0]=0.0
-
+    logger.info('Dump prediction results...')
     dum_pred_results(
-        path = model_path+MODEL_NAME+'.csv',
+        path = model_path+model_name+'.csv',
         train_y = train_y,
         train_predictions=train_predictions,
         dev_y = dev_y,
@@ -2256,79 +2211,77 @@ def one_step_lstm(
         test_y = test_y,
         test_predictions = test_predictions,
         time_cost = time_cost)
-
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + MODEL_NAME + '-TRAIN-PRED.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + MODEL_NAME + "-DEV-PRED.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "-TEST-PRED.png")
-    plot_error_distribution(test_predictions,test_y,model_path+MODEL_NAME+'-TEST-ERROR-DSTRI.png')
-
+    logger.info('Plot the prediction results...')
+    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + model_name + '-TRAIN-PRED.png')
+    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + model_name + "-DEV-PRED.png")
+    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + model_name + "-TEST-PRED.png")
+    plot_error_distribution(test_predictions,test_y,model_path+model_name+'-TEST-ERROR-DSTRI.png')
+    plt.close('all')
 
 
 def multi_step_lstm(
     root_path,station,decomposer,predict_pattern,lags,model_id,seed,
-    wavelet_level='db10-lev2',
-    epochs_num=5000,
+    wavelet_level='db10-2',
+    n_epochs=1000,
     batch_size=128,
-    learning_rate=0.007,
+    learn_rate=0.007,
     decay_rate=0.0,
-    hidden_layer=1,
-    hidden_units_1=8,
-    dropout_rate_1=0.0,
-    hidden_units_2=8,
-    dropout_rate_2=0.0,
-    early_stoping=True,
+    n_hidden_layers=1,
+    hidden_units=[8],
+    dropout_rates=[0.0],
+    early_stop=True,
     retrain=False,
     warm_up=False,
     initial_epoch=None,
 ):
+    logger.info('Build multi-step LSTM model...')
+    logger.info('Model informattion:')
+    logger.info('\tRoot path:{}'.format(root_path))
+    logger.info('\tStation:{}'.format(station))
+    logger.info('\tDecomposer:{}'.format(decomposer))
+    logger.info('\tPredict pattern:{}'.format(predict_pattern))
+    logger.info('\tLags:{}'.format(lags))
+    logger.info('\tModel index:{}'.format(model_id))
+    logger.info('\tSeed:{}'.format(seed))
+    logger.info('\tMonther wavelet and decomposition level of WA:{}'.format(wavelet_level))
+    logger.info('\tNumber of epochs:{}'.format(n_epochs))
+    logger.info('\tBatch size:{}'.format(batch_size))
+    logger.info('\tLearning rate:{}'.format(learn_rate))
+    logger.info('\tDecay rate of learning rate:{}'.format(decay_rate))
+    logger.info('\tNumber of hidden layers:{}'.format(n_hidden_layers))
+    logger.info('\tNumber of hidden units:{}'.format(hidden_units))
+    logger.info('\tDropout rates:{}'.format(dropout_rates))
+    logger.info('\tEarly stoping:{}'.format(early_stop))
+    logger.info('\tRetrain model:{}'.format(retrain))
+    logger.info('\tWarm up:{}'.format(warm_up))
+    logger.info('\tInitial epoch of warm up:{}'.format(initial_epoch))
     if model_id>len(lags):
         raise Exception("The model id exceed the number of sub-signals")
     # Set project parameters
-    STATION = station
-    DECOMPOSER = decomposer
-    PREDICTOR = 'lstm'
-    PREDICT_PATTERN = predict_pattern # hindcast or forecast
-    SIGNALS = STATION+'_'+DECOMPOSER
 
+    predictor = 'lstm'
+    predict_pattern = predict_pattern # hindcast or forecast
+    signals = station+'_'+decomposer
     # Set the model id
-    MODEL_ID=model_id
-    if DECOMPOSER=='wd':
-        data_path = root_path + '/'+SIGNALS+'/data/'+wavelet_level+'/multi_step_one_month_'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/'+wavelet_level+'/multi_step_one_month_'+PREDICT_PATTERN+'/imf'+str(MODEL_ID)+'/'
+    model_id=model_id
+    if decomposer=='dwt' or decomposer=='modwt':
+        data_path = root_path + '/'+signals+'/data/'+wavelet_level+'/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+wavelet_level+'/'+predict_pattern+'/s'+str(model_id)+'/history/'
     else:
-        data_path = root_path + '/'+SIGNALS+'/data/multi_step_one_month_'+PREDICT_PATTERN+'/'
-        model_path = root_path+'/'+SIGNALS+'/projects/'+PREDICTOR+'/multi_step_one_month_'+PREDICT_PATTERN+'/imf'+str(MODEL_ID)+'/'
+        data_path = root_path + '/'+signals+'/data/'+predict_pattern+'/'
+        model_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/s'+str(model_id)+'/history/'
 
     if not os.path.exists(model_path):
         os.makedirs(model_path)
+    logger.info('\tData path:{}'.format(data_path))
+    logger.info('\tModel path:{}'.format(model_path))
     ######################################################
-    RE_TRAIN = retrain
-    WARM_UP = warm_up
-    EARLY_STOPING = early_stoping
-    INITIAL_EPOCH = initial_epoch
-    # For initialize weights and bias
-    SEED=seed
-    # set hyper-parameters
-    EPS=epochs_num     #epochs number
-    #########--1--###########
-    LR=learning_rate     #learnin rate 0.0001, 0.0003, 0.0007, 0.001, 0.003, 0.007,0.01, 0.03 0.1
-    #########--2--############
-    HU1 = hidden_units_1     #hidden units for hidden layer 1
-    BS = batch_size    #batch size
-    #########--3--###########
-    HL = hidden_layer      #hidden layers
-    HU2 = hidden_units_2    #hidden units for hidden layer 2
-    DC=decay_rate  #decay rate of learning rate
-    #########--4--###########
-    DR1=dropout_rate_1      #dropout rate for hidden layer 1
-    DR2=dropout_rate_2      #dropout rate for hidden layer 2
-    ########################################################
-
+    
+    logger.info('Load learning samples...')
     # 1.Import the sampled normalized data set from disk
-    train = pd.read_csv(data_path+'minmax_unsample_train_imf'+str(MODEL_ID)+'.csv')
-    dev = pd.read_csv(data_path+'minmax_unsample_dev_imf'+str(MODEL_ID)+'.csv')
-    test = pd.read_csv(data_path+'minmax_unsample_test_imf'+str(MODEL_ID)+'.csv')
-
+    train = pd.read_csv(data_path+'minmax_unsample_train_s'+str(model_id)+'.csv')
+    dev = pd.read_csv(data_path+'minmax_unsample_dev_s'+str(model_id)+'.csv')
+    test = pd.read_csv(data_path+'minmax_unsample_test_s'+str(model_id)+'.csv')
     # Split features from labels
     train_x = train
     train_y = train.pop('Y')
@@ -2344,64 +2297,50 @@ def multi_step_lstm(
     dev_x = (dev_x.values).reshape(dev_x.shape[0],1,dev_x.shape[1])
     test_x = (test_x.values).reshape(test_x.shape[0],1,test_x.shape[1])
     # 2.Build LSTM model with keras
-    # set the hyper-parameters
-    LEARNING_RATE=LR
-    EPOCHS = EPS
-    BATCH_SIZE = BS
-    if HL==2:
-        HIDDEN_UNITS = [HU1,HU2]
-        DROP_RATE = [DR1,DR2]
-    else:
-        HIDDEN_UNITS = [HU1]
-        DROP_RATE = [DR1]
-
-    DECAY_RATE = DC
-    MODEL_NAME = 'LSTM-IMF'+str(MODEL_ID)+\
-        '-LR['+str(LEARNING_RATE)+\
-        ']-HU'+str(HIDDEN_UNITS)+\
-        '-EPS['+str(EPOCHS)+\
-        ']-BS['+str(BATCH_SIZE)+\
-        ']-DR'+str(DROP_RATE)+\
-        '-DC['+str(DECAY_RATE)+\
-        ']-SEED['+str(SEED)+']'
+    
+    model_name = 'LSTM-S'+str(model_id)+\
+        '-LR['+str(learn_rate)+\
+        ']-HU'+str(hidden_units)+\
+        '-EPS['+str(n_epochs)+\
+        ']-BS['+str(batch_size)+\
+        ']-DR'+str(dropout_rates)+\
+        '-DC['+str(decay_rate)+\
+        ']-SEED['+str(seed)+']'
     # RESUME_TRAINING = True
     def build_model():
-        if HL==2:
+        logger.info('Build LSTM model...')
+        if n_hidden_layers==2:
             model = keras.Sequential(
             [
-                layers.LSTM(HIDDEN_UNITS[0],activation=tf.nn.relu,return_sequences=True,input_shape=(train_x.shape[1],train_x.shape[2])),
-                layers.Dropout(DROP_RATE[0], noise_shape=None, seed=None),
-                layers.LSTM(HIDDEN_UNITS[1],activation=tf.nn.relu,return_sequences=False), # first hidden layer if hasnext hidden layer
-                layers.Dropout(DROP_RATE[1], noise_shape=None, seed=None),
-                # layers.LSTM(20,activation=tf.nn.relu,return_sequence=True),
+                layers.LSTM(hidden_units[0],activation=tf.nn.relu,return_sequences=True,input_shape=(train_x.shape[1],train_x.shape[2])),
+                layers.Dropout(dropout_rates[0], noise_shape=None, seed=seed),
+                layers.LSTM(hidden_units[1],activation=tf.nn.relu,return_sequences=False), # first hidden layer if hasnext hidden layer
+                layers.Dropout(dropout_rates[1], noise_shape=None, seed=seed),
                 layers.Dense(1)
             ]
         )
         else:
             model = keras.Sequential(
                 [
-                    layers.LSTM(HIDDEN_UNITS[0],activation=tf.nn.relu,input_shape=(train_x.shape[1],train_x.shape[2])),
-                    layers.Dropout(DROP_RATE[0], noise_shape=None, seed=None),
-                    # layers.LSTM(HIDDEN_UNITS1,activation=tf.nn.relu,return_sequences=True,input_shape=(train_x.shape[1],train_x.shape[2])), # first hidden layer if hasnext hidden layer
-                    # layers.LSTM(20,activation=tf.nn.relu,return_sequence=True),
+                    layers.LSTM(hidden_units[0],activation=tf.nn.relu,input_shape=(train_x.shape[1],train_x.shape[2])),
+                    layers.Dropout(dropout_rates[0], noise_shape=None, seed=seed),
                     layers.Dense(1)
                 ]
             )
-        optimizer = keras.optimizers.Adam(LEARNING_RATE,
-        decay=DECAY_RATE
-        )
-        model.compile(loss='mean_squared_error',
-                        optimizer=optimizer,
+        optimizer = keras.optimizers.Adam(learn_rate,decay=decay_rate)
+        model.compile(loss='mean_squared_error',optimizer=optimizer,
                         metrics=['mean_absolute_error','mean_squared_error'])
         return model
+
+    logger.info('Set model parameters restore path...')
     # set model's parameters restore path
-    cp_path = model_path+MODEL_NAME+'\\'
+    cp_path = model_path+model_name+'\\'
     if not os.path.exists(cp_path):
         os.makedirs(cp_path)
-    checkpoint_path = model_path+MODEL_NAME+'\\cp.ckpt' #restore only the latest checkpoint after every update
+    checkpoint_path = model_path+model_name+'\\cp.ckpt' #restore only the latest checkpoint after every update
     # checkpoint_path = model_path+'cp-{epoch:04d}.ckpt' #restore the checkpoint every period=x epoch
     checkpoint_dir = os.path.dirname(checkpoint_path)
-    print('checkpoint dir:{}'.format(checkpoint_dir))
+    logger.info('checkpoint dir:{}'.format(checkpoint_dir))
     cp_callback = keras.callbacks.ModelCheckpoint(checkpoint_path,save_best_only=True,mode='min',save_weights_only=True,verbose=1)
     # cp_callback = keras.callbacks.ModelCheckpoint(checkpoint_path,save_weights_only=True,period=5,verbose=1)
     # if not RESUME_TRAINING:
@@ -2433,23 +2372,23 @@ def multi_step_lstm(
     reduce_lr = ReduceLROnPlateau(monitor='val_loss',min_lr=0.00001,factor=0.2, verbose=1,patience=10, mode='min')
     early_stopping = EarlyStopping(monitor='val_loss', mode='min',verbose=1,patience=200,restore_best_weights=True)
 
-
-    warm_dir = 'LSTM-IMF'+str(MODEL_ID)+\
-        '-LR['+str(LEARNING_RATE)+\
-        ']-HU'+str(HIDDEN_UNITS)+\
-        '-EPS['+str(INITIAL_EPOCH)+\
-        ']-BS['+str(BATCH_SIZE)+\
-        ']-DR'+str(DROP_RATE)+\
-        '-DC['+str(DECAY_RATE)+\
-        ']-SEED['+str(SEED)+']'
-    print("WARM UP PATH:{}".format(os.path.exists(model_path+warm_dir)))
+    warm_dir = 'LSTM-S'+str(model_id)+\
+        '-LR['+str(learn_rate)+\
+        ']-HU'+str(hidden_units)+\
+        '-EPS['+str(initial_epoch)+\
+        ']-BS['+str(batch_size)+\
+        ']-DR'+str(dropout_rates)+\
+        '-DC['+str(decay_rate)+\
+        ']-SEED['+str(seed)+']'
+    logger.info("WARM UP PATH:{}".format(os.path.exists(model_path+warm_dir)))
     # Training models
-    if  RE_TRAIN: # Retraining the LSTM model
+    logger.info('Train the LSTM model...')
+    if  retrain: # Retraining the LSTM model
         print('retrain the model')
-        if EARLY_STOPING:
+        if early_stop:
             start = time.process_time()
-            history = model.fit(train_x,train_y,epochs=EPOCHS,
-            batch_size=BATCH_SIZE ,
+            history = model.fit(train_x,train_y,epochs=n_epochs,
+            batch_size=batch_size ,
             validation_data=(dev_x,dev_y),
             verbose=1,
             callbacks=[
@@ -2460,8 +2399,8 @@ def multi_step_lstm(
             time_cost = end -start
         else:
             start = time.process_time()
-            history = model.fit(train_x,train_y,epochs=EPOCHS,
-            batch_size=BATCH_SIZE ,
+            history = model.fit(train_x,train_y,epochs=n_epochs,
+            batch_size=batch_size ,
             validation_data=(dev_x,dev_y),
             verbose=1,
             callbacks=[
@@ -2470,24 +2409,24 @@ def multi_step_lstm(
             end = time.process_time()
             time_cost = end - start
         hist = pd.DataFrame(history.history)
-        hist.to_csv(model_path+MODEL_NAME+'-HISTORY-TRAIN-TEST.csv')
+        hist.to_csv(model_path+model_name+'-HISTORY-TRAIN-TEST.csv')
         hist['epoch']=history.epoch
-        # print(hist.tail())
+        logger.debug(hist.tail())
         plot_history(history,
-        model_path+MODEL_NAME+'-MAE-ERRORS-TRAINTEST.png',
-        model_path+MODEL_NAME+'-MSE-ERRORS-TRAINTEST.png')
+        model_path+model_name+'-MAE-ERRORS-TRAINTEST.png',
+        model_path+model_name+'-MSE-ERRORS-TRAINTEST.png')
     elif len(files)==0: # The current model has not been trained
         # Training the model using the trained weights and biases as initialized parameters
-        if os.path.exists(model_path+warm_dir) and WARM_UP:
+        if os.path.exists(model_path+warm_dir) and warm_up:
             # Warm up from the last epoch of the target model
-            print('WARM UP FROM EPOCH '+str(INITIAL_EPOCH))
+            print('WARM UP FROM EPOCH '+str(initial_epoch))
             prev_time_cost = (pd.read_csv(model_path+warm_dir+'.csv')['time_cost'])[0]
             warm_path=model_path+warm_dir+'\\cp.ckpt'
             model.load_weights(warm_path)
-            if EARLY_STOPING:
+            if early_stop:
                 start = time.process_time()
-                history = model.fit(train_x,train_y,initial_epoch=INITIAL_EPOCH,epochs=EPOCHS,
-                batch_size=BATCH_SIZE ,
+                history = model.fit(train_x,train_y,initial_epoch=initial_epoch,epochs=n_epochs,
+                batch_size=batch_size ,
                 validation_data=(dev_x,dev_y),
                 verbose=1,
                 callbacks=[
@@ -2498,8 +2437,8 @@ def multi_step_lstm(
                 time_cost = end -start + prev_time_cost
             else:
                 start = time.process_time()
-                history = model.fit(train_x,train_y,initial_epoch=INITIAL_EPOCH,epochs=EPOCHS,
-                batch_size=BATCH_SIZE ,
+                history = model.fit(train_x,train_y,initial_epoch=initial_epoch,epochs=n_epochs,
+                batch_size=batch_size ,
                 validation_data=(dev_x,dev_y),
                 verbose=1,
                 callbacks=[
@@ -2508,18 +2447,18 @@ def multi_step_lstm(
                 end = time.process_time()
                 time_cost = end - start + prev_time_cost
             hist = pd.DataFrame(history.history)
-            hist.to_csv(model_path+MODEL_NAME+'-HISTORY-TRAIN-TEST.csv')
+            hist.to_csv(model_path+model_name+'-HISTORY-TRAIN-TEST.csv')
             hist['epoch']=history.epoch
-            # print(hist.tail())
+            logger.debug(hist.tail())
             plot_history(history,
-            model_path+MODEL_NAME+'-MAE-ERRORS-TRAINTEST.png',
-            model_path+MODEL_NAME+'-MSE-ERRORS-TRAINTEST.png')
+            model_path+model_name+'-MAE-ERRORS-TRAINTEST.png',
+            model_path+model_name+'-MSE-ERRORS-TRAINTEST.png')
         else:
-            print('new train')
-            if EARLY_STOPING:
+            logger.info('new train')
+            if early_stop:
                 start = time.process_time()
-                history = model.fit(train_x,train_y,epochs=EPOCHS,
-                batch_size=BATCH_SIZE ,
+                history = model.fit(train_x,train_y,epochs=n_epochs,
+                batch_size=batch_size ,
                 validation_data=(dev_x,dev_y),
                 verbose=1,
                 callbacks=[
@@ -2530,8 +2469,8 @@ def multi_step_lstm(
                 time_cost = end - start
             else:
                 start = time.process_time()
-                history = model.fit(train_x,train_y,epochs=EPOCHS,
-                batch_size=BATCH_SIZE ,
+                history = model.fit(train_x,train_y,epochs=n_epochs,
+                batch_size=batch_size ,
                 validation_data=(dev_x,dev_y),
                 verbose=1,
                 callbacks=[
@@ -2540,15 +2479,15 @@ def multi_step_lstm(
                 end = time.process_time()
                 time_cost = end-start
             hist = pd.DataFrame(history.history)
-            hist.to_csv(model_path+MODEL_NAME+'-HISTORY-TRAIN-TEST.csv')
+            hist.to_csv(model_path+model_name+'-HISTORY-TRAIN-TEST.csv')
             hist['epoch']=history.epoch
-            # print(hist.tail())
+            logger.debug(hist.tail())
             plot_history(history,
-            model_path+MODEL_NAME+'-MAE-ERRORS-TRAINTEST.png',
-            model_path+MODEL_NAME+'-MSE-ERRORS-TRAINTEST.png')
+            model_path+model_name+'-MAE-ERRORS-TRAINTEST.png',
+            model_path+model_name+'-MSE-ERRORS-TRAINTEST.png')
     else:
-        print('#'*10+'Already Trained')
-        time_cost = (pd.read_csv(model_path+MODEL_NAME+'.csv')['time_cost'])[0]
+        logger.info('#'*10+'Already Trained')
+        time_cost = (pd.read_csv(model_path+model_name+'.csv')['time_cost'])[0]
         model.load_weights(checkpoint_path)
 
         # loss, mae, mse = model.evaluate(test_x, test_y, verbose=1)
@@ -2559,12 +2498,13 @@ def multi_step_lstm(
     """
     # 4. Predict the model
     # load the unsample data
+    logger.info('Predict the training, development and testing samples...')
     train_predictions = model.predict(train_x).flatten()
     dev_predictions = model.predict(dev_x).flatten()
     test_predictions = model.predict(test_x).flatten()
     # renormized the predictions and labels
     # load the normalized traindev indicators
-    norm = pd.read_csv(data_path+'norm_unsample_id_imf'+str(MODEL_ID)+'.csv')
+    norm = pd.read_csv(data_path+'norm_unsample_id_s'+str(model_id)+'.csv')
     sMax = norm['series_max'][norm.shape[0]-1]
     sMin = norm['series_min'][norm.shape[0]-1]
     print('Series min:{}'.format(sMin))
@@ -2577,8 +2517,9 @@ def multi_step_lstm(
     test_y = np.multiply(test_y + 1,sMax - sMin) / 2 + sMin
     test_predictions = np.multiply(test_predictions + 1,sMax - sMin) / 2 + sMin
 
+    logger.info('Dump prediction results...')
     dum_pred_results(
-        path = model_path+MODEL_NAME+'.csv',
+        path = model_path+model_name+'.csv',
         train_y = train_y,
         train_predictions=train_predictions,
         dev_y = dev_y,
@@ -2587,7 +2528,9 @@ def multi_step_lstm(
         test_predictions = test_predictions,
         time_cost=time_cost)
 
-    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + MODEL_NAME + '-TRAIN-PRED.png')
-    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + MODEL_NAME + "-DEV-PRED.png")
-    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + MODEL_NAME + "-TEST-PRED.png")
-    plot_error_distribution(test_predictions,test_y,model_path+MODEL_NAME+'-TEST-ERROR-DSTRI.png')
+    logger.info('Plot the prediction results...')
+    plot_rela_pred(train_y,train_predictions,fig_savepath=model_path + model_name + '-TRAIN-PRED.png')
+    plot_rela_pred(dev_y,dev_predictions,fig_savepath=model_path + model_name + "-DEV-PRED.png")
+    plot_rela_pred(test_y,test_predictions,fig_savepath=model_path + model_name + "-TEST-PRED.png")
+    plot_error_distribution(test_predictions,test_y,model_path+model_name+'-TEST-ERROR-DSTRI.png')
+    plt.close('all')

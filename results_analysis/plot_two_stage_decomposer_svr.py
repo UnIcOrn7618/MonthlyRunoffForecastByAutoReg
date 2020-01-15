@@ -8,7 +8,7 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 graphs_path = root_path+'/results_analysis/graphs/'
 print(root_path)
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from results_reader import read_two_stage,read_pure_esvr
 from fit_line import compute_linear_fit,compute_list_linear_fit
 
@@ -28,9 +28,9 @@ h_ssa_records,h_ssa_predictions,h_ssa_r2,h_ssa_nrmse,h_ssa_mae,h_ssa_mape,h_ssa_
 x_ssa_records,x_ssa_predictions,x_ssa_r2,x_ssa_nrmse,x_ssa_mae,x_ssa_mape,x_ssa_ppts,x_ssa_timecost= read_two_stage(station="Xianyang",decomposer="ssa",predict_pattern="one_step_1_month_forecast")
 z_ssa_records,z_ssa_predictions,z_ssa_r2,z_ssa_nrmse,z_ssa_mae,z_ssa_mape,z_ssa_ppts,z_ssa_timecost= read_two_stage(station="Zhangjiashan",decomposer="ssa",predict_pattern="one_step_1_month_forecast")
 
-h_wd_records,h_wd_predictions,h_wd_r2,h_wd_nrmse,h_wd_mae,h_wd_mape,h_wd_ppts,h_wd_timecost= read_two_stage(station="Huaxian",decomposer="wd",predict_pattern="one_step_1_month_forecast")
-x_wd_records,x_wd_predictions,x_wd_r2,x_wd_nrmse,x_wd_mae,x_wd_mape,x_wd_ppts,x_wd_timecost= read_two_stage(station="Xianyang",decomposer="wd",predict_pattern="one_step_1_month_forecast")
-z_wd_records,z_wd_predictions,z_wd_r2,z_wd_nrmse,z_wd_mae,z_wd_mape,z_wd_ppts,z_wd_timecost= read_two_stage(station="Zhangjiashan",decomposer="wd",predict_pattern="one_step_1_month_forecast")
+h_dwt_records,h_dwt_predictions,h_dwt_r2,h_dwt_nrmse,h_dwt_mae,h_dwt_mape,h_dwt_ppts,h_dwt_timecost= read_two_stage(station="Huaxian",decomposer="dwt",predict_pattern="one_step_1_month_forecast")
+x_dwt_records,x_dwt_predictions,x_dwt_r2,x_dwt_nrmse,x_dwt_mae,x_dwt_mape,x_dwt_ppts,x_dwt_timecost= read_two_stage(station="Xianyang",decomposer="dwt",predict_pattern="one_step_1_month_forecast")
+z_dwt_records,z_dwt_predictions,z_dwt_r2,z_dwt_nrmse,z_dwt_mae,z_dwt_mape,z_dwt_ppts,z_dwt_timecost= read_two_stage(station="Zhangjiashan",decomposer="dwt",predict_pattern="one_step_1_month_forecast")
 
 
 
@@ -55,7 +55,7 @@ ax1.set_ylabel("Flow(" + r"$10^8m^3$" + ")")
 ax1.text(-5,30,'(a1)',fontweight='normal',fontsize=7)
 ax1.plot(h_records,label='Records',lw=2.5,zorder=0)
 ax1.plot(h_vmd_predictions,label='VMD-SVR',lw=2,zorder=1)
-ax1.plot(h_wd_predictions,':',label='DWT-SVR',lw=1.5,zorder=2)
+ax1.plot(h_dwt_predictions,':',label='DWT-SVR',lw=1.5,zorder=2)
 ax1.plot(h_ssa_predictions,'-.',label='SSA-SVR',lw=1.0,zorder=3)
 ax1.plot(h_eemd_predictions,'--',label='EEMD-SVR',lw=0.5,zorder=4)
 ax1.plot(h_predictions,'-',label='SVR',lw=0.5,zorder=4)
@@ -68,8 +68,8 @@ ax1.legend(
             frameon=True,
             )
 
-records_list=[h_vmd_records,h_wd_records,h_ssa_records,h_eemd_records,h_records]
-predictions_list=[h_vmd_predictions,h_wd_predictions,h_ssa_predictions,h_eemd_predictions,h_predictions]
+records_list=[h_vmd_records,h_dwt_records,h_ssa_records,h_eemd_records,h_records]
+predictions_list=[h_vmd_predictions,h_dwt_predictions,h_ssa_predictions,h_eemd_predictions,h_predictions]
 xx,linear_list,xymin,xymax=compute_list_linear_fit(
     records_list=records_list,
     predictions_list=predictions_list,
@@ -101,13 +101,13 @@ ax3.set_ylabel("Flow(" + r"$10^8m^3$" + ")")
 ax3.text(-5,19,'(b1)',fontweight='normal',fontsize=7)
 ax3.plot(x_records,label='Records',lw=2.5,zorder=0)
 ax3.plot(x_vmd_predictions,label='VMD-SVR',lw=2,zorder=1)
-ax3.plot(x_wd_predictions,':',label='DWT-SVR',lw=1.5,zorder=2)
+ax3.plot(x_dwt_predictions,':',label='DWT-SVR',lw=1.5,zorder=2)
 ax3.plot(x_ssa_predictions,'-.',label='SSA-SVR',lw=1.0,zorder=3)
 ax3.plot(x_eemd_predictions,'--',label='EEMD-SVR',lw=0.5,zorder=4)
 ax3.plot(x_predictions,'-',label='SVR',lw=0.5,zorder=5)
 
-records_list=[x_vmd_records,x_wd_records,x_ssa_records,x_eemd_records,x_records]
-predictions_list=[x_vmd_predictions,x_wd_predictions,x_ssa_predictions,x_eemd_predictions,x_predictions]
+records_list=[x_vmd_records,x_dwt_records,x_ssa_records,x_eemd_records,x_records]
+predictions_list=[x_vmd_predictions,x_dwt_predictions,x_ssa_predictions,x_eemd_predictions,x_predictions]
 xx,linear_list,xymin,xymax=compute_list_linear_fit(
     records_list=records_list,
     predictions_list=predictions_list,
@@ -132,13 +132,13 @@ ax5.set_ylabel("Flow(" + r"$10^8m^3$" + ")")
 ax5.text(-5,4.5,'(c1)',fontweight='normal',fontsize=7)
 ax5.plot(z_records,label='Records',lw=2.5,zorder=0)
 ax5.plot(z_vmd_predictions,label='VMD-SVR',lw=2,zorder=1)
-ax5.plot(z_wd_predictions,':',label='DWT-SVR',lw=1.5,zorder=2)
+ax5.plot(z_dwt_predictions,':',label='DWT-SVR',lw=1.5,zorder=2)
 ax5.plot(z_ssa_predictions,'-.',label='SSA-SVR',lw=1.0,zorder=3)
 ax5.plot(z_eemd_predictions,'--',label='EEMD-SVR',lw=0.5,zorder=4)
 ax5.plot(z_predictions,'-',label='SVR',lw=0.5,zorder=5)
 
-records_list=[z_vmd_records,z_wd_records,z_ssa_records,z_eemd_records,z_records]
-predictions_list=[z_vmd_predictions,z_wd_predictions,z_ssa_predictions,z_eemd_predictions,z_predictions]
+records_list=[z_vmd_records,z_dwt_records,z_ssa_records,z_eemd_records,z_records]
+predictions_list=[z_vmd_predictions,z_dwt_predictions,z_ssa_predictions,z_eemd_predictions,z_predictions]
 xx,linear_list,xymin,xymax=compute_list_linear_fit(
     records_list=records_list,
     predictions_list=predictions_list,

@@ -9,7 +9,7 @@ root_path = os.path.dirname(os.path.abspath('__file__'))
 graphs_path = root_path+'/results_analysis/graphs/'
 
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from skopt_plots import plot_convergence,plot_objective,plot_evaluations
 
 res = load(root_path+'/Huaxian_vmd/projects/esvr/one_step_1_month_forecast/result_seed4.pkl')

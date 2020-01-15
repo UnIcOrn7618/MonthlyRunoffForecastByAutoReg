@@ -3,7 +3,7 @@ import os
 root_path = os.path.dirname(os.path.abspath('__file__'))
 from variables import multi_step_lags
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from models import multi_step_gbrt
 
 
@@ -13,7 +13,7 @@ if __name__ == '__main__':
         station='Zhangjiashan',
         decomposer='eemd',
         predict_pattern='forecast',
-        lags=multi_step_lags,
+        llags_dict = variables['lags_dict'],
         model_id=1
     )
     plt.show()

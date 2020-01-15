@@ -112,12 +112,12 @@ if __name__ == "__main__":
     #     save_path=root_path+'/graphs/huaxian-vmd-pacf.eps'
     # )
 
-    # # plot pacf for huaxian-wd
+    # # plot pacf for huaxian-dwt
     plot_pacf(
-        pacf_path=root_path+'/Huaxian_wd/data/db10-lev2/pacfs20.csv',
-        up_bound_path=root_path+'/Huaxian_wd/data/db10-lev2/up_bounds20.csv',
-        low_bound_path=root_path+'/Huaxian_wd/data/db10-lev2/lo_bounds20.csv',
-        save_path=root_path+'/graphs/huaxian-wd(db10-lev2)-pacf.eps'
+        pacf_path=root_path+'/Huaxian_dwt/data/db10-2/pacfs20.csv',
+        up_bound_path=root_path+'/Huaxian_dwt/data/db10-2/up_bounds20.csv',
+        low_bound_path=root_path+'/Huaxian_dwt/data/db10-2/lo_bounds20.csv',
+        save_path=root_path+'/graphs/huaxian-dwt(db10-2)-pacf.eps'
     )
 
     # # plot pacf for xianyang-eemd
@@ -144,12 +144,12 @@ if __name__ == "__main__":
     #     save_path = root_path+'/graphs/xianyang-vmd-pacf.eps'
     # )
 
-    # # plot pacf for xianyang-wd
+    # # plot pacf for xianyang-dwt
     # plot_pacf(
-    #     pacf_path=root_path+'/Xianyang_wd/data/db10-lev2/pacfs20.csv',
-    #     up_bound_path=root_path+'/Xianyang_wd/data/db10-lev2/up_bounds20.csv',
-    #     low_bound_path=root_path+'/Xianyang_wd/data/db10-lev2/lo_bounds20.csv',
-    #     save_path=root_path+'/graphs/xianyang-wd(db10-lev2)-pacf.eps'
+    #     pacf_path=root_path+'/Xianyang_dwt/data/db10-2/pacfs20.csv',
+    #     up_bound_path=root_path+'/Xianyang_dwt/data/db10-2/up_bounds20.csv',
+    #     low_bound_path=root_path+'/Xianyang_dwt/data/db10-2/lo_bounds20.csv',
+    #     save_path=root_path+'/graphs/xianyang-dwt(db10-2)-pacf.eps'
     # )
 
     # # plot pacf for zhangjiashan-eemd
@@ -176,12 +176,12 @@ if __name__ == "__main__":
     #     save_path=root_path+'/graphs/Zhangjiashan_vmd-pacf.eps'
     # )
 
-    # # plot pacf for zhangjiashan-wd
+    # # plot pacf for zhangjiashan-dwt
     # plot_pacf(
-    #     pacf_path=root_path+'/Zhangjiashan_wd/data/db10-lev2/pacfs20.csv',
-    #     up_bound_path=root_path+'/Zhangjiashan_wd/data/db10-lev2/up_bounds20.csv',
-    #     low_bound_path=root_path+'/Zhangjiashan_wd/data/db10-lev2/lo_bounds20.csv',
-    #     save_path=root_path+'/graphs/zhangjiashan-wd(db10-lev2)-pacf.eps'
+    #     pacf_path=root_path+'/Zhangjiashan_dwt/data/db10-2/pacfs20.csv',
+    #     up_bound_path=root_path+'/Zhangjiashan_dwt/data/db10-2/up_bounds20.csv',
+    #     low_bound_path=root_path+'/Zhangjiashan_dwt/data/db10-2/lo_bounds20.csv',
+    #     save_path=root_path+'/graphs/zhangjiashan-dwt(db10-2)-pacf.eps'
     # )
 
 

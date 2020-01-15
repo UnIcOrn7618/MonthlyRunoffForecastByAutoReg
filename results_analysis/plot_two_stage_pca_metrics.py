@@ -11,7 +11,7 @@ graphs_path = root_path+'\\results_analysis\\graphs\\'
 
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_squared_log_error
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from metrics_ import PPTS,mean_absolute_percentage_error
 from results_reader import read_pca_metrics
 
@@ -34,9 +34,9 @@ if __name__ == "__main__":
     z_s_mle,z_s_r2,z_s_nrmse,z_s_mae,z_s_mape,z_s_ppts=read_pca_metrics(station="Zhangjiashan",decomposer="ssa",start_component=35,stop_component=50)
 
     # read metrics of dwt-svr models for all three stations
-    h_w_mle,h_w_r2,h_w_nrmse,h_w_mae,h_w_mape,h_w_ppts=read_pca_metrics(station="Huaxian",decomposer="wd",start_component=45,stop_component=60)
-    x_w_mle,x_w_r2,x_w_nrmse,x_w_mae,x_w_mape,x_w_ppts=read_pca_metrics(station="Xianyang",decomposer="wd",start_component=45,stop_component=60)
-    z_w_mle,z_w_r2,z_w_nrmse,z_w_mae,z_w_mape,z_w_ppts=read_pca_metrics(station="Zhangjiashan",decomposer="wd",start_component=45,stop_component=60)
+    h_w_mle,h_w_r2,h_w_nrmse,h_w_mae,h_w_mape,h_w_ppts=read_pca_metrics(station="Huaxian",decomposer="dwt",start_component=45,stop_component=60)
+    x_w_mle,x_w_r2,x_w_nrmse,x_w_mae,x_w_mape,x_w_ppts=read_pca_metrics(station="Xianyang",decomposer="dwt",start_component=45,stop_component=60)
+    z_w_mle,z_w_r2,z_w_nrmse,z_w_mae,z_w_mape,z_w_ppts=read_pca_metrics(station="Zhangjiashan",decomposer="dwt",start_component=45,stop_component=60)
 
     print("Huaxian:VMD-SVR:{}\n".format((max(h_v_r2[1:])-h_v_r2[0])/h_v_r2[0]))
     print("Xianyang:VMD-SVR:{}\n".format((max(x_v_r2[1:])-x_v_r2[0])/x_v_r2[0]))

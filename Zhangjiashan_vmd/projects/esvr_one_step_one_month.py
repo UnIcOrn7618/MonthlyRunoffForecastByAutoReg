@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import os
 root_path = os.path.dirname(os.path.abspath('__file__'))
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from models import one_step_esvr,one_step_esvr_multi_seed
 
 

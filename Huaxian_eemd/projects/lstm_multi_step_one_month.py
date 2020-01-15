@@ -6,7 +6,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 from variables import multi_step_lags
 
 import sys
-sys.path.append(root_path+'/tools/')
+sys.path.append(root_path)
 from models import multi_step_lstm
 
 if __name__ == "__main__":
@@ -15,7 +15,7 @@ if __name__ == "__main__":
         station='Huaxian',
         decomposer='eemd',
         predict_pattern='forecast',
-        lags=multi_step_lags,
+        llags_dict = variables['lags_dict'],
         model_id=1,
         seed=1,
         epochs_num=5000,

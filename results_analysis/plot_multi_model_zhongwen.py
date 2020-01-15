@@ -22,7 +22,7 @@ huaxian = pd.read_csv(root_path+'/Huaxian/projects/esvr/Huaxian_esvr.csv')
 huaxian_eemd = pd.read_csv(root_path+'/Huaxian_eemd/projects/esvr/one_step_one_month_forecast/Huaxian_eemd_one_step_esvr_forecast.csv')
 huaxian_ssa = pd.read_csv(root_path+'/Huaxian_ssa/projects/esvr/one_step_one_month_forecast/Huaxian_ssa_one_step_esvr_forecast.csv')
 huaxian_vmd = pd.read_csv(root_path+'/Huaxian_vmd/projects/esvr/one_step_one_month_forecast/Huaxian_vmd_one_step_esvr_forecast.csv')
-huaxian_wd = pd.read_csv(root_path+'/Huaxian_wd/projects/esvr/db10-lev2/one_step_one_month_forecast/Huaxian_wd_one_step_esvr_forecast.csv')
+huaxian_dwt = pd.read_csv(root_path+'/Huaxian_dwt/projects/esvr/db10-2/one_step_one_month_forecast/Huaxian_dwt_one_step_esvr_forecast.csv')
 
 plt.figure(figsize=(7.48,8))
 records=huaxian_vmd['test_y'].iloc[0:120]
@@ -142,7 +142,7 @@ plt.xlim([xymin,xymax])
 plt.ylim([xymin,xymax])
 
 # plot DWT-SVR
-predictions=huaxian_wd['test_pred'].iloc[0:120]
+predictions=huaxian_dwt['test_pred'].iloc[0:120]
 plt.subplot(4,2,7)
 plt.text(120,-14,'(d)DWT-LSTM',fontdict=font)
 plt.xlabel("时间（月）")
