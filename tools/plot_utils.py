@@ -16,7 +16,7 @@ plt.rcParams['font.size']=9
 # plt.rcParams['image.cmap']='plasma'
 # plt.rcParams['axes.linewidth']=2
 
-def plot_cv_error(data_path,labels):
+def plot_cv_error(data_path,labels,mode='avg'):
     logger.info('Plot cross validation MSE...')
     logger.info('Data path:{}'.format(data_path))
     logger.info('Labels:{}'.format(labels))
@@ -28,27 +28,38 @@ def plot_cv_error(data_path,labels):
     plt.ylabel('MSE')
     for path,label in zip(data_path,labels):
         logger.info('Read cv results of {}'.format(path))
-        cv_dict={}
+        dev_cv={}
+        test_cv={}
         for file_ in os.listdir(path):
             if '.csv' in file_ and 'seed' not in file_ and 'optimized_params' not in file_:
                 logger.info('cv-file:{}'.format(file_))
                 cv = int(re.findall(r"(?<=cv)\d+", file_)[0])
                 logger.info('cv={}'.format(cv))
                 data = pd.read_csv(path+file_)
-                mse = data['dev_mse'][0]
-                logger.info('Development MSE={}'.format(mse))
-                cv_dict[cv]=mse
-        logger.debug('cv dict before sort:{}'.format(cv_dict))
-        cv_dict= dict(sorted(cv_dict.items()))
-        logger.info('Cross validation dict:{}'.format(dict))
-        logger.info('Cross validation folds:{}'.format(cv_dict.keys()))
-        logger.info('Cross validation MSE:{}'.format(cv_dict.values()))
-        plt.plot(list(cv_dict.keys()),list(cv_dict.values()),marker='o',label=label)
+                dev_metrics = data['dev_nrmse'][0]
+                test_metrics = data['test_nrmse'][0]
+                logger.info('Development metrics={}'.format(dev_metrics))
+                dev_cv[cv]=dev_metrics
+                test_cv[cv]=test_metrics
+        logger.debug('Development cv dict before sort:{}'.format(dev_cv))
+        logger.debug('Testing cv dict before sort:{}'.format(test_cv))
+        dev_cv= dict(sorted(dev_cv.items()))
+        test_cv= dict(sorted(test_cv.items()))
+        logger.info('Cross validation development dict:{}'.format(dev_cv))
+        logger.info('Cross validation folds:{}'.format(dev_cv.keys()))
+        logger.info('Cross validation MSE:{}'.format(dev_cv.values()))
+        plt.plot(list(dev_cv.keys()),list(dev_cv.values()),marker='o',label=label+'dev')
+        plt.plot(list(test_cv.keys()),list(test_cv.values()),marker='o',label=label+'test')
         plt.legend()
     plt.tight_layout()
     plt.show()
-            
-                    
+
+
+def plot_pacf(file_path):
+    data = pd.read_csv(file_path)
+    up = data['UP']
+    low = data['LOW']
+               
 
 
 def plot_rela_pred(records, predictions, fig_savepath,xlabel='Time(month)',figsize=(7.48, 3),format='PNG',dpi=300):

@@ -22,6 +22,7 @@ from functools import partial
 from statsmodels.tsa.arima_model import ARIMA
 from random import seed
 from random import random
+seed(1)
 # from skopt.callbacks import CheckpointSaver
 
 import tensorflow as tf
@@ -62,7 +63,7 @@ EPS_DPI = 2000
 TIFF_DPI=1200
 
 
-def multi_optimizer_esvr(root_path,station,predict_pattern,n_calls=100,cv=6):
+def multi_optimizer_esvr(root_path,station,predict_pattern,n_calls=100,cv=10):
     # Set the time series and model parameters
     predictor = 'esvr'
     data_path = root_path + '/'+station+'/data/'+predict_pattern+'/'
@@ -136,7 +137,7 @@ def multi_optimizer_esvr(root_path,station,predict_pattern,n_calls=100,cv=6):
             plt.close('all')
     
 
-def esvr(root_path,station,predict_pattern,optimizer='gp',n_calls=100,cv=6):
+def esvr(root_path,station,predict_pattern,optimizer='gp',n_calls=100,cv=10):
     logger.info("Build monoscale epsilon SVR model ...")
     logger.info("Root path:{}".format(root_path))
     logger.info("Station:{}".format(station))
@@ -304,7 +305,7 @@ def esvr(root_path,station,predict_pattern,optimizer='gp',n_calls=100,cv=6):
         plt.close('all')
     
 
-def esvr_multi_seed(root_path,station,predict_pattern,optimizer='gp',n_calls=100,cv=6,iterations=10):
+def esvr_multi_seed(root_path,station,predict_pattern,optimizer='gp',n_calls=100,cv=10,iterations=10):
     logger.info("Build epsilon SVR with multiple seed...")
     logger.info("Root path:{}".format(root_path))
     logger.info("Station:{}".format(station))
@@ -412,7 +413,7 @@ def esvr_multi_seed(root_path,station,predict_pattern,optimizer='gp',n_calls=100
              -epsilon = %.8f
              -gamma = %.8f
              """%(res.x[0],res.x[1],res.x[2]))
-            logger.inf('Time cost:{} seconds'.format(time_cost))
+            logger.info('Time cost:{} seconds'.format(time_cost))
             # Construct the optimal hyperparameters to restore them
             params_dict={
                 'C':res.x[0],
@@ -465,7 +466,7 @@ def esvr_multi_seed(root_path,station,predict_pattern,optimizer='gp',n_calls=100
     plt.close('all')
         
 
-def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=6):
+def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=10):
     # Set project parameters
     logger.info('Build one-step epsilon SVR model...')
     
@@ -634,7 +635,7 @@ def one_step_esvr(root_path,station,decomposer,predict_pattern,optimizer='gp',wa
         plt.close('all')
     
 
-def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=6,iterations=10):
+def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=10,iterations=10):
     logger.info('Build one-step epsilon SVR model with multiple seed...')
     logger.info('Root path:{}'.format(root_path))
     logger.info('Station:{}'.format(station))
@@ -802,7 +803,7 @@ def one_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,optimi
 
         
 
-def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=6):
+def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=10):
     logger.info('Build multi-step epsilon SVR model...')
     
     logger.info('Root path:{}'.format(root_path))
@@ -970,7 +971,7 @@ def multi_step_esvr(root_path,station,decomposer,predict_pattern,lags,model_id,o
         
 
 
-def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=6,iterations=10):
+def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=10,iterations=10):
     logger.info('Roo path:{}'.format(root_path))
     logger.info('Station:{}'.format(station))
     logger.info('Decomposer:{}'.format(decomposer))
@@ -1138,7 +1139,7 @@ def multi_step_esvr_multi_seed(root_path,station,decomposer,predict_pattern,lags
     plt.close('all')          
 
 
-def gbrt(root_path,station,predict_pattern,optimizer='gp',n_calls=100,cv=6):
+def gbrt(root_path,station,predict_pattern,optimizer='gp',n_calls=100,cv=10):
     logger.info('Root path:{}'.format(root_path))
     logger.info('Station:{}'.format(station))
     logger.info('Predict pattern:{}'.format(predict_pattern))
@@ -1290,7 +1291,7 @@ def gbrt(root_path,station,predict_pattern,optimizer='gp',n_calls=100,cv=6):
         plot_error_distribution(test_y,test_predictions,fig_savepath=model_path +model_name + "_test_error.png")
         plt.close('all')
 
-def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=6):
+def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=10):
     logger.info('Roo path:{}'.format(root_path))
     logger.info('Station:{}'.format(station))
     logger.info('Decomposer:{}'.format(decomposer))
@@ -1448,7 +1449,7 @@ def one_step_gbrt(root_path,station,decomposer,predict_pattern,optimizer='gp',wa
         plt.close('all')
 
 
-def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=6):
+def multi_step_gbrt(root_path,station,decomposer,predict_pattern,lags,model_id,optimizer='gp',wavelet_level='db10-2',n_calls=100,cv=10):
     logger.info('Roo path:{}'.format(root_path))
     logger.info('Station:{}'.format(station))
     logger.info('Decomposer:{}'.format(decomposer))

@@ -3,7 +3,7 @@ root_path = os.path.dirname(os.path.abspath("__file__"))
 from variables import variables
 import sys
 sys.path.append(root_path)
-from samples_generator import generate_monoscale_samples
+from tools.samples_generator import generate_monoscale_samples
 
 
 
