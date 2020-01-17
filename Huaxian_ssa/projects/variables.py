@@ -24,7 +24,20 @@ for signal in subsignals_pacf.columns.tolist():
     lags_dict[signal]=lag  
 
 variables={
-    'lags_dict':lags_dict,
+    'lags_dict':{
+        'Trend':15,
+        'Periodic1':4,
+        'Periodic2':16,
+        'Periodic3':20,
+        'Periodic4':20,
+        'Periodic5':15,
+        'Periodic6':20,
+        'Periodic7':18,
+        'Periodic8':13,
+        'Periodic9':19,
+        'Periodic10':19,
+        'Noise':19,
+    },
     'full_len' :data_part['full_len'],
     'train_len' :data_part['train_len'],
     'dev_len' : data_part['dev_len'],

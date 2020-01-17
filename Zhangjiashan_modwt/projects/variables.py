@@ -25,7 +25,7 @@ for signal in subsignals_pacf.columns.tolist():
     lags_dict[signal]=lag  
 
 variables={
-    'lags_dict':lags_dict,
+    'lags_dict':{'D1':20,'D2':20,'A2':20},
     'full_len' :data_part['full_len'],
     'train_len' :data_part['train_len'],
     'dev_len' : data_part['dev_len'],
@@ -33,15 +33,3 @@ variables={
 }
 logger.debug('variables:{}'.format(variables))
 
-
-# one_step_lags=[
-#     20,#D1
-#     20,#D2
-#     20,#A2
-# ]
-
-# multi_step_lags=[
-#     20,#D1
-#     20,#D2
-#     20,#A2
-# ]

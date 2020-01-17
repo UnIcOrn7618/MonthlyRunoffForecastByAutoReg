@@ -1,4 +1,3 @@
-
 import os
 root_path = os.path.dirname(os.path.abspath("__file__"))
 import sys
@@ -21,18 +20,19 @@ gen_one_step_forecast_samples_triandev_test(
         test_len=120,
     )
 
-gen_one_step_forecast_samples(
-    station = "Huaxian",
-    decomposer="vmd",
-    lags_dict = variables['lags_dict'],
-    input_columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
-    output_column=['ORIG'],
-    start=553,
-    stop=792,
-    test_len=120,
-    mode = 'PACF',
-    lead_time =1,
-)
+for lead_time in [1,3,5,7,9]:
+    gen_one_step_forecast_samples(
+        station = "Huaxian",
+        decomposer="vmd",
+        lags_dict = variables['lags_dict'],
+        input_columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
+        output_column=['ORIG'],
+        start=553,
+        stop=792,
+        test_len=120,
+        mode = 'PACF',
+        lead_time =lead_time,
+    )
 
 for lead_time in [3,5,7,9]:
     gen_one_step_forecast_samples(
@@ -47,22 +47,6 @@ for lead_time in [3,5,7,9]:
         mode = 'Pearson',
         lead_time =lead_time,
     )
-
-
-for lead_time in [3,5,7,9]:
-    gen_one_step_forecast_samples(
-        station = "Huaxian",
-        decomposer="vmd",
-        lags_dict = variables['lags_dict'],
-        input_columns=['IMF1','IMF2','IMF3','IMF4','IMF5','IMF6','IMF7','IMF8',],
-        output_column=['ORIG'],
-        start=553,
-        stop=792,
-        test_len=120,
-        mode = 'PACF',
-        lead_time =lead_time,
-    )
-
 
 gen_multi_step_forecast_samples(
     station='Huaxian',

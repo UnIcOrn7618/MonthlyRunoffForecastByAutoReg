@@ -18,19 +18,12 @@ data_part=dictdump['data_part']
 
 
 # ensemble models for multi-step decomposition-ensemble models
-def ensemble(root_path,original_series,station,decomposer,lags_dict,predictor,predict_pattern,test_len,full_len,wavelet_level='db10-2'):
-    """Ensemble sub-signals' predictions in multi-step decomposition-ensemble mode.
-    Keyword arhuments:
-        \n--root_path: [string] The absolute path of the entire project.
-        \n--original_series: [string] The file with absolute path where the orginal time series is restored.
-        \n--station: [string] The station name where the original time series come from.
-        \n--decomposer: [string] The decomposition tool for decomposing the original time series, e.g., 'eemd','ssa','vmd','dwt'.
-        \n--multi_step_lags: [list] The list of lags for generating learning samples for forecasting models.
-        \n--predictor: [string] The forecasting model, e.g., 'esvr'= Eplison SVR, 'gbrt'=Gradient Boosting Regression Tree, 'lstm'=Long short-term memory.
-        \n--predict_pattern: [string] The prediction pattern for building decomposition-ensemble model, e.g., 'forecast' or 'hindcast' or 'forecast_with_pca_mle'.
-        \n--test_len: [int] The length of test samples.
-        \n--full_len: [int] The length of original time series.
-    """
+def ensemble(root_path,original_series,station,predictor,predict_pattern,variables,decomposer=None,wavelet_level='db10-2'):
+    lags_dict = variables['lags_dict']
+    full_len = variables['full_len']
+    train_len = variables['train_len']
+    dev_len = variables['dev_len']
+    test_len = variables['test_len']
     logger.info('Ensemble forecasting results...')
     logger.info('Root path:{}'.format(root_path))
     logger.info('original series:\n{}'.format(original_series))
@@ -39,19 +32,22 @@ def ensemble(root_path,original_series,station,decomposer,lags_dict,predictor,pr
     logger.info('Lags dict:{}'.format(lags_dict))
     logger.info('Predictor:{}'.format(predictor))
     logger.info('Predict pattern:{}'.format(predict_pattern))
-    logger.info('Test length:{}'.format(test_len))
+    logger.info('Training length:{}'.format(train_len))
+    logger.info('Development length:{}'.format(test_len))
+    logger.info('Testing length:{}'.format(test_len))
     logger.info('Entire length:{}'.format(full_len))
     logger.info('Wavelet and decomposition level of WA:{}'.format(wavelet_level))
     
     original = original_series
-    signals = station+'_'+decomposer
     if decomposer=='dwt' or decomposer=='modwt':
-        models_path = root_path+'/'+signals+'/projects/'+predictor+'/'+wavelet_level+'/'+predict_pattern+'/'
+        models_path = root_path+'/'+station+'_'+decomposer+'/projects/'+predictor+'/'+wavelet_level+'/'+predict_pattern+'/'
+    elif decomposer==None:
+        models_path = root_path+'/'+station+'/projects/'+predictor+'/'+predict_pattern+'/'
     else:
-        models_path = root_path+'/'+signals+'/projects/'+predictor+'/'+predict_pattern+'/'
+        models_path = root_path+'/'+station+'_'+decomposer+'/projects/'+predictor+'/'+predict_pattern+'/'
     logger.info("Model path:{}".format(models_path))
 
-    if 'one_step' in predict_pattern:
+    if 'multi_step' not in predict_pattern:
         models_history = models_path+'history/'
         optimal_model = ''
         min_dev_mse = np.inf

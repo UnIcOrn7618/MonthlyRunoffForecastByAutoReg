@@ -18,18 +18,19 @@ gen_one_step_forecast_samples_triandev_test(
     test_len=120,
 )
 
-gen_one_step_forecast_samples(
-    station='Xianyang',
-    decomposer="modwt",
-    lags_dict=variables['lags_dict'],
-    input_columns=['D1', 'D2', 'A2', ],
-    output_column=['ORIG'],
-    start=553,
-    stop=792,
-    test_len=120,
-    mode='PACF',
-    lead_time=1,
-)
+for lead_time in [1,3,5,7,9]:
+    gen_one_step_forecast_samples(
+        station='Xianyang',
+        decomposer="modwt",
+        lags_dict=variables['lags_dict'],
+        input_columns=['D1', 'D2', 'A2', ],
+        output_column=['ORIG'],
+        start=553,
+        stop=792,
+        test_len=120,
+        mode='PACF',
+        lead_time=lead_time,
+    )
 
 for lead_time in [3, 5, 7, 9]:
     gen_one_step_forecast_samples(
@@ -45,19 +46,7 @@ for lead_time in [3, 5, 7, 9]:
         lead_time=lead_time,
     )
 
-for lead_time in [3, 5, 7, 9]:
-    gen_one_step_forecast_samples(
-        station='Xianyang',
-        decomposer="modwt",
-        lags_dict=variables['lags_dict'],
-        input_columns=['D1', 'D2', 'A2', ],
-        output_column=['ORIG'],
-        start=553,
-        stop=792,
-        test_len=120,
-        mode='PACF',
-        lead_time=lead_time,
-    )
+
 
 gen_multi_step_forecast_samples(
     station='Xianyang',

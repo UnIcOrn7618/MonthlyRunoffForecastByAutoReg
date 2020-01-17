@@ -24,7 +24,11 @@ for i =1:length(stations)
     lo_bounds(:,1)=bounds(2);
     PACF_DATA=[pacf,up_bounds,lo_bounds];
     PACF_TABLE = array2table(PACF_DATA, 'VariableNames', {'ORIG','UP','LOW'});
-    writetable(PACF_TABLE, strcat("../",station,"/data/PACF.csv"));
+    save_path = strcat("../",station,"/data/")
+    if exist(save_path,'dir')==0
+            mkdir(save_path);
+    end
+    writetable(PACF_TABLE, strcat(save_path,"/PACF.csv"));
    
     
     for j =1:length(decomposers)
@@ -84,10 +88,17 @@ for i =1:length(stations)
         end
         PACF_DATA=[pacfs,up_bounds,lo_bounds];
         PACF_TABLE = array2table(PACF_DATA, 'VariableNames', columns);
+        
         if decomposer=="dwt" || decomposer=="modwt"
-            writetable(PACF_TABLE, strcat("../",station,"_",decomposer,"/data/db10-2/PACF.csv"));
+            save_path = strcat("../",station,"_",decomposer,"/data/db10-2/")
+%             writetable(PACF_TABLE, strcat("../",station,"_",decomposer,"/data/db10-2/PACF.csv"));
         else
-            writetable(PACF_TABLE, strcat("../",station,"_",decomposer,"/data/PACF.csv"));
+%             writetable(PACF_TABLE, strcat("../",station,"_",decomposer,"/data/PACF.csv"));
+            save_path = strcat("../",station,"_",decomposer,"/data/")
         end
+        if exist(save_path,'dir')==0
+            mkdir(save_path);
+        end
+        writetable(PACF_TABLE, strcat(save_path,"/PACF.csv"));
     end
 end
